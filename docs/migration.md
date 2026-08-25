@@ -29,7 +29,7 @@ zshctl-bind-default-keys
 ## Install from a release
 
 Download `scripts/install.sh` from the same tagged source revision, inspect it,
-then run it with the tag, for example `sh install.sh v1.0.0`. Add this loader:
+then run it with the tag, for example `sh install.sh v0.1.0`. Add this loader:
 
 ```zsh
 source "$HOME/.local/lib/zshctl/zshctl.zsh"
@@ -53,7 +53,7 @@ lifecycle operations or cross-request caches and prints a diagnostic on stderr.
    daemon PID.
 4. Exercise snippet, completion, placeholder, ghq, and history bindings.
 
-History starts in zshctl' SQLite database. NDJSON can use stdin/stdout, while
+History starts in zshctl's SQLite database. NDJSON can use stdin/stdout, while
 the compatible file-oriented formats use `--in` and `--out`:
 
 ```sh

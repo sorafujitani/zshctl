@@ -1,4 +1,7 @@
 #autoload
 emulate -L zsh
+_zshctl_noop() { : }
+zle -N _zshctl_noop
+local ZSHCTL_AUTO_SNIPPET_FALLBACK=_zshctl_noop
 zle zshctl-auto-snippet
 zle accept-line

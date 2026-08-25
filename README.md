@@ -1,91 +1,110 @@
 # zshctl
 
-zshctl is an independent Rust-native shell workflow suite for Zsh. It combines
-interactive snippets, completion, repository navigation, and durable history
-behind a fast per-user daemon.
+zshctl is a Rust-native workflow toolkit for Zsh. It provides snippets,
+context-aware completion, repository navigation, and durable Smart History
+through a fast per-user daemon.
 
-The v1 implementation includes a framed versioned protocol, a deterministic
-per-user daemon, YAML configuration, snippets/placeholders/preprompt, completion
-and built-in Git/ghq sources, the Zsh adapter, and transactional Smart History.
+## Quick start with Homebrew
 
-## Installation
-
-### Homebrew
-
-The Formula is maintained in the [`sorafujitani/homebrew-tap`](https://github.com/sorafujitani/homebrew-tap) repository:
+Install the tagged stable release from the maintained tap:
 
 ```sh
-brew tap sorafujitani/tap
-brew install zshctl
+brew install sorafujitani/tap/zshctl
 ```
 
-The Formula installs `zshctl`, `zshctld`, the Zsh integration, and the runtime
-dependencies `fzf` and `ghq`. It prints the loader line after installation.
+Add the loader to `~/.zshrc`:
+
+```zsh
+source "$(brew --prefix)/share/zshctl/zshctl.zsh"
+zshctl-bind-default-keys
+```
+
+Open a new shell and verify the daemon:
+
+```sh
+zshctl server status
+```
+
+The Formula installs `zshctl`, `zshctld`, the Zsh integration, `fzf`, and `ghq`.
+
+## What it provides
+
+- YAML snippets with placeholders and automatic first-word expansion
+- Context-aware completion backed by commands and built-in Git sources
+- `ghq` repository selection
+- SQLite command history with scopes, redaction, import, and export
+- A versioned local protocol and one deterministic per-user daemon
+- Native binaries with no JavaScript runtime dependency
+
+## Configuration
+
+Create `~/.config/zshctl/config.yml`. For example:
+
+```yaml
+snippets:
+  - name: git status
+    keyword: gs
+    snippet: git status
+
+completions:
+  - name: project tasks
+    patterns:
+      - "^just $"
+    sourceCommand: "just --summary"
+```
+
+Configuration is merged from `~/.config/zshctl`, project `.zshctl`
+directories, and paths selected with `ZSHCTL_HOME` or `ZSHCTL_CONFIG`.
+
+The default bindings are:
+
+| Key | Action |
+| --- | --- |
+| Space | Expand an automatic snippet, otherwise insert a space |
+| Enter | Expand an automatic snippet, then accept the line |
+| Tab | Open context-aware completion |
+| Ctrl-R | Open Smart History |
+| Ctrl-X Ctrl-S | Select and insert a snippet |
+| Ctrl-X Ctrl-G | Select and enter a `ghq` repository |
+
+Call `zshctl-bind-default-keys` only if these bindings are wanted. Individual
+`zshctl-*` widgets can be bound separately.
+
+## Other installation methods
 
 ### Nix
-
-The flake exposes a package containing zshctl and the Zsh integration:
 
 ```sh
 nix profile add github:sorafujitani/zshctl#zshctl
 ```
-
-Add the loader to `.zshrc` using the default Nix profile:
 
 ```zsh
 source "$HOME/.nix-profile/share/zshctl/zshctl.zsh"
 zshctl-bind-default-keys
 ```
 
-For development, use the locked Nix tooling environment instead:
+The flake exposes `.#zshctl`; `.#zshctl-core` is an alias. Install `fzf` and
+`ghq` separately when they are not already provided by the system or Home
+Manager.
 
-```sh
-nix develop
-cargo test --workspace
-```
+### Tagged binary release
 
-The Nix package is available as `.#zshctl`; `.#zshctl-core` is retained as an
-alias. Install `fzf` and `ghq` separately when they are not already available.
-Keeping those tools outside the zshctl profile avoids collisions with Home
-Manager and existing Nix profiles. The locked Nixpkgs input currently targets
-Apple Silicon macOS and Linux; Homebrew remains the installation path for Intel
-macOS.
+Every `vMAJOR.MINOR.PATCH` GitHub Release contains checksummed archives for
+supported macOS and Linux targets. The versioned installer and rollback flow
+are documented in the [migration guide](docs/migration.md).
 
 ### Build from source
 
-If neither package manager is available, build the workspace directly:
-
 ```sh
 cargo build --release --bins
-```
-
-Then source `zshctl.zsh` from the checkout. It adds the local
-`target/release` directory to the Zsh path automatically.
-
-## Zsh setup
-
-```zsh
-source "$HOME/.local/lib/zshctl/zshctl.zsh"
+source "$PWD/zshctl.zsh"
 zshctl-bind-default-keys
 ```
 
-zshctl exposes only `zshctl`, `zshctld`, `zshctl-*` widgets, and `ZSHCTL_*`
-settings. `fzf` is needed for interactive pickers and `ghq` for the repository
-widget. zshctl itself has no JavaScript runtime dependency.
+The minimum supported Rust version is 1.85. Zsh 5.8 or newer is the v1 shell
+target.
 
-## Build and check
-
-```sh
-cargo build --release
-cargo fmt --all -- --check
-cargo clippy --workspace --all-targets -- -D warnings
-cargo test --workspace
-```
-
-The minimum supported Rust version is 1.85. zshctl targets current macOS and
-Linux runners. Zsh 5.8 or newer is the v1 shell target.
-
-## Daemon control
+## Operations
 
 ```sh
 zshctl server start
@@ -94,18 +113,21 @@ zshctl server restart
 zshctl server stop
 ```
 
-The socket is located under `$ZSHCTL_RUNTIME_DIR` when set, then
-`$XDG_RUNTIME_DIR/zshctl`, otherwise a user-owned `/tmp/zshctl-UID` directory.
-zshctl rejects runtime directories owned by another user or accessible to group
-or other users.
+The socket is placed under `$ZSHCTL_RUNTIME_DIR`, then
+`$XDG_RUNTIME_DIR/zshctl`, or a protected `/tmp/zshctl-UID` directory. History
+is stored under the standard user data directory and is preserved on uninstall.
 
-zshctl reads YAML configuration from `$ZSHCTL_HOME`, `$ZSHCTL_CONFIG`, project
-`.zshctl` directories, and standard XDG locations. Configuration parsing,
-merging, caching, snippets, completion, and history are implemented in Rust.
+## Development
 
-See [the architecture](docs/architecture.md) and [the zshctl interface
-contract](spec/manifest.json).
+```sh
+cargo fmt --all -- --check
+cargo clippy --workspace --all-targets -- -D warnings
+cargo test --workspace
+cargo build --locked --release --bins
+```
 
-Installation, migration, upgrade, rollback, and removal are documented in the
-[migration guide](docs/migration.md). Reproducible performance definitions and
-budgets live in [performance-budgets.json](spec/performance-budgets.json).
+Architecture and public behavior are documented in
+[docs/architecture.md](docs/architecture.md) and
+[spec/manifest.json](spec/manifest.json). Release maintainers should follow
+[docs/releasing.md](docs/releasing.md); installation, migration, rollback, and
+removal are covered by [docs/migration.md](docs/migration.md).

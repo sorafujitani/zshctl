@@ -28,3 +28,14 @@ for widget in zshctl-auto-snippet zshctl-completion zshctl-history-selection \
   zshctl-insert-snippet zshctl-snippet-next-placeholder zshctl-ghq-cd; do
   [[ -n ${widgets[$widget]-} ]]
 done
+
+# Enter must never fall back to self-insert and place a CR in the buffer.
+(
+  calls=()
+  zle() { calls+=("$*") }
+  source "${0:A:h:h:h}/shells/zsh/widgets/zshctl-auto-snippet-and-accept-line"
+  [[ $ZSHCTL_AUTO_SNIPPET_FALLBACK == _zshctl_noop ]]
+  [[ $calls[1] == '-N _zshctl_noop' ]]
+  [[ $calls[2] == zshctl-auto-snippet ]]
+  [[ $calls[3] == accept-line ]]
+)

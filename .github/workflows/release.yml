@@ -8,7 +8,18 @@ permissions:
   contents: write
 
 jobs:
+  validate-tag:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@1.85.0
+      - name: Require the tag to match the workspace version
+        run: |
+          version="$(cargo metadata --no-deps --format-version 1 | jq -r '.packages[0].version')"
+          test "${GITHUB_REF_NAME}" = "v${version}"
+
   build:
+    needs: validate-tag
     strategy:
       matrix:
         include:
@@ -42,6 +53,7 @@ jobs:
           path: zshctl-*.tar.gz*
 
   verify:
+    needs: validate-tag
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -59,6 +71,7 @@ jobs:
       - run: ZSHCTL_BIN="$PWD/target/release/zshctl" tests/release/matrix.sh
 
   benchmark:
+    needs: validate-tag
     runs-on: macos-14
     steps:
       - uses: actions/checkout@v4
