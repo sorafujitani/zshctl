@@ -1,12 +1,12 @@
 [workspace]
 resolver = "2"
 members = [
-  "crates/hermes-cli",
-  "crates/hermes-config",
-  "crates/hermes-core",
-  "crates/hermes-daemon",
-  "crates/hermes-history",
-  "crates/hermes-protocol",
+  "crates/zshctl-cli",
+  "crates/zshctl-config",
+  "crates/zshctl-core",
+  "crates/zshctl-daemon",
+  "crates/zshctl-history",
+  "crates/zshctl-protocol",
 ]
 
 [workspace.package]
@@ -14,7 +14,7 @@ version = "0.1.0"
 edition = "2024"
 rust-version = "1.85"
 license = "MIT"
-repository = "https://github.com/sorafujitani/hermes.zsh"
+repository = "https://github.com/sorafujitani/zshctl"
 
 [workspace.dependencies]
 anyhow = "1.0"

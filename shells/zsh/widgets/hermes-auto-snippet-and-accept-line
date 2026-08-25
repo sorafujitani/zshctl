@@ -1,4 +1,0 @@
-#autoload
-emulate -L zsh
-zle hermes-auto-snippet
-zle accept-line

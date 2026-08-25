@@ -334,91 +334,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2304e00983f87ffb38b55b444b5e3b60a884b5d30c0fca7d82fe33449bbe55ea"
 
 [[package]]
-name = "hermes-cli"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "clap",
- "hermes-daemon",
- "hermes-protocol",
- "serde_json",
- "time",
- "tokio",
- "tracing-subscriber",
-]
-
-[[package]]
-name = "hermes-config"
-version = "0.1.0"
-dependencies = [
- "hermes-core",
- "serde",
- "serde_json",
- "serde_yaml",
- "tempfile",
- "thiserror",
-]
-
-[[package]]
-name = "hermes-core"
-version = "0.1.0"
-dependencies = [
- "fancy-regex",
- "proptest",
- "serde",
- "shell-words",
- "thiserror",
-]
-
-[[package]]
-name = "hermes-daemon"
-version = "0.1.0"
-dependencies = [
- "fancy-regex",
- "fs2",
- "hermes-config",
- "hermes-core",
- "hermes-history",
- "hermes-protocol",
- "libc",
- "serde",
- "serde_json",
- "shell-words",
- "tempfile",
- "thiserror",
- "time",
- "tokio",
- "tracing",
- "uuid",
-]
-
-[[package]]
-name = "hermes-history"
-version = "0.1.0"
-dependencies = [
- "regex",
- "rusqlite",
- "serde",
- "serde_json",
- "tempfile",
- "thiserror",
- "time",
- "uuid",
-]
-
-[[package]]
-name = "hermes-protocol"
-version = "0.1.0"
-dependencies = [
- "proptest",
- "serde",
- "serde_json",
- "thiserror",
- "tokio",
- "uuid",
-]
-
-[[package]]
 name = "indexmap"
 version = "2.14.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1285,3 +1200,88 @@ name = "zmij"
 version = "1.0.23"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "29666d0abbfad1e3dc4dcf6144730dd3a3ab225bbbdac83319345b1b44ccfc1b"
+
+[[package]]
+name = "zshctl-cli"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "clap",
+ "serde_json",
+ "time",
+ "tokio",
+ "tracing-subscriber",
+ "zshctl-daemon",
+ "zshctl-protocol",
+]
+
+[[package]]
+name = "zshctl-config"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "serde_json",
+ "serde_yaml",
+ "tempfile",
+ "thiserror",
+ "zshctl-core",
+]
+
+[[package]]
+name = "zshctl-core"
+version = "0.1.0"
+dependencies = [
+ "fancy-regex",
+ "proptest",
+ "serde",
+ "shell-words",
+ "thiserror",
+]
+
+[[package]]
+name = "zshctl-daemon"
+version = "0.1.0"
+dependencies = [
+ "fancy-regex",
+ "fs2",
+ "libc",
+ "serde",
+ "serde_json",
+ "shell-words",
+ "tempfile",
+ "thiserror",
+ "time",
+ "tokio",
+ "tracing",
+ "uuid",
+ "zshctl-config",
+ "zshctl-core",
+ "zshctl-history",
+ "zshctl-protocol",
+]
+
+[[package]]
+name = "zshctl-history"
+version = "0.1.0"
+dependencies = [
+ "regex",
+ "rusqlite",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "thiserror",
+ "time",
+ "uuid",
+]
+
+[[package]]
+name = "zshctl-protocol"
+version = "0.1.0"
+dependencies = [
+ "proptest",
+ "serde",
+ "serde_json",
+ "thiserror",
+ "tokio",
+ "uuid",
+]

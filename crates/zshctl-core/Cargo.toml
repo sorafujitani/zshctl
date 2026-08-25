@@ -1,0 +1,15 @@
+[package]
+name = "zshctl-core"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[dependencies]
+fancy-regex.workspace = true
+serde.workspace = true
+shell-words.workspace = true
+thiserror.workspace = true
+
+[dev-dependencies]
+proptest.workspace = true

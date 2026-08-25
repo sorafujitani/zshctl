@@ -1,9 +1,0 @@
-#autoload
-emulate -L zsh
-local -a out
-out=("${(f)$(command hermes --mode=next-placeholder --input.lbuffer="$LBUFFER" --input.rbuffer="$RBUFFER")}")
-if [[ $out[1] == success ]]; then
-  BUFFER=$out[2]
-  CURSOR=$out[3]
-fi
-zle reset-prompt

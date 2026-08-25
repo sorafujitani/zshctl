@@ -1,5 +1,5 @@
 {
-  description = "Hermes, a Rust-native shell workflow suite for Zsh";
+  description = "zshctl, a Rust-native shell workflow suite for Zsh";
 
   inputs.nixpkgs.url = "https://flakehub.com/f/DeterminateSystems/nixpkgs-weekly/0.1";
 
@@ -16,8 +16,8 @@
         let
           pkgs = import nixpkgs { inherit system; };
           version = "0.1.0";
-          hermes = pkgs.rustPlatform.buildRustPackage {
-            pname = "hermes";
+          zshctl = pkgs.rustPlatform.buildRustPackage {
+            pname = "zshctl";
             inherit version;
             src = ./.;
 
@@ -26,37 +26,37 @@
             };
 
             postInstall = ''
-              install -Dm644 hermes.zsh "$out/share/hermes/hermes.zsh"
-              cp -R shells docs spec scripts "$out/share/hermes/"
+              install -Dm644 zshctl.zsh "$out/share/zshctl/zshctl.zsh"
+              cp -R shells docs spec scripts "$out/share/zshctl/"
             '';
 
             meta = {
               description = "Rust-native stateful shell workflows for Zsh";
-              homepage = "https://github.com/sorafujitani/hermes.zsh";
+              homepage = "https://github.com/sorafujitani/zshctl";
               license = pkgs.lib.licenses.mit;
-              mainProgram = "hermes";
+              mainProgram = "zshctl";
               platforms = systems;
             };
           };
         in {
-          default = hermes;
-          hermes = hermes;
-          hermes-core = hermes;
+          default = zshctl;
+          zshctl = zshctl;
+          zshctl-core = zshctl;
         });
 
       apps = forAllSystems (system:
         let
-          hermes = self.packages.${system}.hermes-core;
+          zshctl = self.packages.${system}.zshctl-core;
         in {
           default = {
             type = "app";
-            program = "${hermes}/bin/hermes";
-            meta.description = "Run Hermes from the Nix package";
+            program = "${zshctl}/bin/zshctl";
+            meta.description = "Run zshctl from the Nix package";
           };
-          hermes = {
+          zshctl = {
             type = "app";
-            program = "${hermes}/bin/hermes";
-            meta.description = "Run Hermes from the Nix package";
+            program = "${zshctl}/bin/zshctl";
+            meta.description = "Run zshctl from the Nix package";
           };
         });
 

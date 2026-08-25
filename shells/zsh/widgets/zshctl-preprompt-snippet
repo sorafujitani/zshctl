@@ -1,0 +1,27 @@
+#autoload
+emulate -L zsh
+local in_zle=0 snippet options lines
+(( $+BUFFER )) && in_zle=1
+local -a out
+if [[ -z $1 ]]; then
+  out=("${(f)$(command zshctl --mode=snippet-list)}")
+  options=$out[1]
+  shift out
+  lines=${(F)out}
+  snippet=$(print -r -- "$lines" | ${ZSHCTL_FZF_COMMAND:-fzf} ${(z)options}) || return 0
+  snippet=${snippet%%:*}
+else
+  snippet=$1
+fi
+[[ -n $snippet ]] || return 0
+out=("${(f)$(command zshctl --mode=preprompt-snippet --input.snippet="$snippet")}")
+if [[ $out[1] == success && -n ${out[2]-} ]]; then
+  typeset -g ZSHCTL_PREPROMPT_BUFFER=$out[2]
+  typeset -g ZSHCTL_PREPROMPT_CURSOR=$out[3]
+  typeset -g ZSHCTL_PREPROMPT_RAW=$snippet
+  if (( in_zle )); then BUFFER=$out[2]; CURSOR=$out[3]; fi
+else
+  unset ZSHCTL_PREPROMPT_BUFFER ZSHCTL_PREPROMPT_CURSOR ZSHCTL_PREPROMPT_RAW
+fi
+(( in_zle )) && zle reset-prompt
+return 0

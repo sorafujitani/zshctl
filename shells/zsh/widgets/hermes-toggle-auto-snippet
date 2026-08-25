@@ -1,8 +1,0 @@
-#autoload
-emulate -L zsh
-if [[ $HERMES_ENABLE -eq 0 ]]; then
-  export HERMES_ENABLE=1
-else
-  export HERMES_ENABLE=0
-fi
-zle reset-prompt

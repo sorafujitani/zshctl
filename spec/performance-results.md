@@ -3,11 +3,11 @@
 Captured on 2026-08-17 with the release profile at source working tree state,
 Rust 1.85.0, macOS 14.7.3 (Darwin 23.6.0), and Apple M3 Pro. The exact hyperfine
 samples and medians are checked in under `benchmark-results/`; rerun with
-`HERMES_BIN=$PWD/target/release/hermes scripts/benchmark.sh`.
+`ZSHCTL_BIN=$PWD/target/release/zshctl scripts/benchmark.sh`.
 
 | Workload | Definition | p50 / RSS | Budget | Result |
 | --- | --- | ---: | ---: | --- |
-| Shell startup | `zsh -dfc` sources `hermes.zsh` | 7.15 ms | 25 ms | pass |
+| Shell startup | `zsh -dfc` sources `zshctl.zsh` | 7.15 ms | 25 ms | pass |
 | Cold request | stopped daemon through healthy start | 29.76 ms | 250 ms | pass |
 | Warm request | status against a healthy daemon | 3.07 ms | 10 ms | pass |
 | Daemon idle memory | RSS after health | 3.72 MiB | 30 MiB | pass |

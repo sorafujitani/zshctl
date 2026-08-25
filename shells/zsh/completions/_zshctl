@@ -1,0 +1,11 @@
+#compdef zshctl zshctld
+
+_arguments -C \
+  '--mode=[run a zshctl feature mode]:mode:(auto-snippet insert-snippet snippet-list preprompt preprompt-snippet next-placeholder completion ghq-list chdir pid)' \
+  '1:command:(server capabilities request history)' \
+  '*::argument:->args'
+
+case $words[2] in
+  server) _values 'server command' run start stop restart status ;;
+  history) _values 'history command' log query delete export import integrity fzf-config ;;
+esac

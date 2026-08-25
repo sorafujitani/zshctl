@@ -26,20 +26,20 @@ jobs:
       - uses: dtolnay/rust-toolchain@1.85.0
       - name: Build the exact tagged revision
         env:
-          HERMES_BUILD_IDENTITY: ${{ github.sha }}
+          ZSHCTL_BUILD_IDENTITY: ${{ github.sha }}
         run: cargo build --locked --release --bins
       - name: Package
         run: |
           mkdir package
           printf '%s\n' '${{ github.sha }}' > package/BUILD_IDENTITY
-          cp target/release/hermes target/release/hermesd hermes.zsh LICENSE README.md package/
+          cp target/release/zshctl target/release/zshctld zshctl.zsh LICENSE README.md package/
           cp -R shells docs spec scripts package/
-          tar -czf "hermes-${{ github.ref_name }}-${{ matrix.artifact }}.tar.gz" -C package .
-          shasum -a 256 "hermes-${{ github.ref_name }}-${{ matrix.artifact }}.tar.gz" > "hermes-${{ github.ref_name }}-${{ matrix.artifact }}.tar.gz.sha256"
+          tar -czf "zshctl-${{ github.ref_name }}-${{ matrix.artifact }}.tar.gz" -C package .
+          shasum -a 256 "zshctl-${{ github.ref_name }}-${{ matrix.artifact }}.tar.gz" > "zshctl-${{ github.ref_name }}-${{ matrix.artifact }}.tar.gz.sha256"
       - uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.artifact }}
-          path: hermes-*.tar.gz*
+          path: zshctl-*.tar.gz*
 
   verify:
     runs-on: ubuntu-latest
@@ -51,12 +51,12 @@ jobs:
           go install github.com/x-motemen/ghq@v1.9.4
           echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
       - run: cargo build --locked --release --bins
-      - run: HERMES_BIN="$PWD/target/release/hermes" tests/daemon/lifecycle.sh
-      - run: HERMES_BIN="$PWD/target/release/hermes" tests/history/stress.sh
-      - run: HERMES_BIN="$PWD/target/release/hermes" tests/config/cache.sh
-      - run: HERMES_BIN="$PWD/target/release/hermes" tests/zsh/fallback.sh
-      - run: HERMES_BIN="$PWD/target/release/hermes" tests/features/completion.sh
-      - run: HERMES_BIN="$PWD/target/release/hermes" tests/release/matrix.sh
+      - run: ZSHCTL_BIN="$PWD/target/release/zshctl" tests/daemon/lifecycle.sh
+      - run: ZSHCTL_BIN="$PWD/target/release/zshctl" tests/history/stress.sh
+      - run: ZSHCTL_BIN="$PWD/target/release/zshctl" tests/config/cache.sh
+      - run: ZSHCTL_BIN="$PWD/target/release/zshctl" tests/zsh/fallback.sh
+      - run: ZSHCTL_BIN="$PWD/target/release/zshctl" tests/features/completion.sh
+      - run: ZSHCTL_BIN="$PWD/target/release/zshctl" tests/release/matrix.sh
 
   benchmark:
     runs-on: macos-14
@@ -65,7 +65,7 @@ jobs:
       - uses: dtolnay/rust-toolchain@1.85.0
       - run: brew install hyperfine
       - run: cargo build --locked --release --bins
-      - run: HERMES_BIN="$PWD/target/release/hermes" scripts/benchmark.sh
+      - run: ZSHCTL_BIN="$PWD/target/release/zshctl" scripts/benchmark.sh
       - uses: actions/upload-artifact@v4
         with:
           name: performance-results

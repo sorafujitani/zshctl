@@ -20,7 +20,7 @@ target
 #  option (not recommended) you can uncomment the following to ignore the entire idea folder.
 #.idea/
 
-# Hermes runtime artifacts used by local and integration tests
+# zshctl runtime artifacts used by local and integration tests
 *.sock
 startup.lock
 *.pid

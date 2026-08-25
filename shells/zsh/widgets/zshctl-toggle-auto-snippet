@@ -1,0 +1,8 @@
+#autoload
+emulate -L zsh
+if [[ $ZSHCTL_ENABLE -eq 0 ]]; then
+  export ZSHCTL_ENABLE=1
+else
+  export ZSHCTL_ENABLE=0
+fi
+zle reset-prompt

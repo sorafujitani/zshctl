@@ -1,25 +1,25 @@
 #!/bin/sh
 set -eu
 
-binary=${HERMES_BIN:?HERMES_BIN must point to hermes}
+binary=${ZSHCTL_BIN:?ZSHCTL_BIN must point to zshctl}
 runtime=$(mktemp -d)
 chmod 700 "$runtime"
 cleanup() {
-  HERMES_RUNTIME_DIR="$runtime" "$binary" server stop >/dev/null 2>&1 || true
+  ZSHCTL_RUNTIME_DIR="$runtime" "$binary" server stop >/dev/null 2>&1 || true
 }
 trap cleanup EXIT HUP INT TERM
 
 start_many() {
   count=0
   while [ "$count" -lt 50 ]; do
-    HERMES_RUNTIME_DIR="$runtime" "$binary" server start >/dev/null &
+    ZSHCTL_RUNTIME_DIR="$runtime" "$binary" server start >/dev/null &
     count=$((count + 1))
   done
   wait
 }
 
 start_many
-status=$(HERMES_RUNTIME_DIR="$runtime" "$binary" server status)
+status=$(ZSHCTL_RUNTIME_DIR="$runtime" "$binary" server status)
 pid=$(printf '%s' "$status" | jq -r '.health.pid')
 test "$(printf '%s' "$status" | jq -r '.state')" = healthy
 kill -0 "$pid"
@@ -28,14 +28,14 @@ test -S "$runtime/daemon.sock"
 # Independent and nested Zsh processes receive distinct session IDs but share
 # the same daemon; exiting either shell does not own daemon cleanup.
 repo=$(cd "$(dirname "$0")/../.." && pwd)
-shell_one=$(HERMES_RUNTIME_DIR="$runtime" HERMES_BIN="$binary" \
-  zsh -dfc 'PATH="${HERMES_BIN:h}:$PATH"; source '"$repo"'/hermes.zsh; hermes-init; print -r -- "$HERMES_SESSION_ID"')
-shell_two=$(HERMES_RUNTIME_DIR="$runtime" HERMES_BIN="$binary" \
-  zsh -dfc 'PATH="${HERMES_BIN:h}:$PATH"; source '"$repo"'/hermes.zsh; hermes-init; print -r -- "$HERMES_SESSION_ID"')
+shell_one=$(ZSHCTL_RUNTIME_DIR="$runtime" ZSHCTL_BIN="$binary" \
+  zsh -dfc 'PATH="${ZSHCTL_BIN:h}:$PATH"; source '"$repo"'/zshctl.zsh; zshctl-init; print -r -- "$ZSHCTL_SESSION_ID"')
+shell_two=$(ZSHCTL_RUNTIME_DIR="$runtime" ZSHCTL_BIN="$binary" \
+  zsh -dfc 'PATH="${ZSHCTL_BIN:h}:$PATH"; source '"$repo"'/zshctl.zsh; zshctl-init; print -r -- "$ZSHCTL_SESSION_ID"')
 test -n "$shell_one"
 test -n "$shell_two"
 test "$shell_one" != "$shell_two"
-test "$(HERMES_RUNTIME_DIR="$runtime" "$binary" server status | jq -r '.health.pid')" = "$pid"
+test "$(ZSHCTL_RUNTIME_DIR="$runtime" "$binary" server status | jq -r '.health.pid')" = "$pid"
 
 if stat -f '%Lp' "$runtime" >/dev/null 2>&1; then
   test "$(stat -f '%Lp' "$runtime")" = 700
@@ -52,7 +52,7 @@ while kill -0 "$pid" 2>/dev/null && [ "$attempt" -lt 100 ]; do
   attempt=$((attempt + 1))
 done
 start_many
-recovered=$(HERMES_RUNTIME_DIR="$runtime" "$binary" server status)
+recovered=$(ZSHCTL_RUNTIME_DIR="$runtime" "$binary" server status)
 recovered_pid=$(printf '%s' "$recovered" | jq -r '.health.pid')
 test "$(printf '%s' "$recovered" | jq -r '.state')" = healthy
 test "$recovered_pid" != "$pid"
@@ -68,6 +68,6 @@ done
 test ! -e "$runtime/daemon.sock"
 test ! -e "$runtime/daemon.pid"
 
-HERMES_RUNTIME_DIR="$runtime" "$binary" server start >/dev/null
-HERMES_RUNTIME_DIR="$runtime" "$binary" server stop >/dev/null
+ZSHCTL_RUNTIME_DIR="$runtime" "$binary" server start >/dev/null
+ZSHCTL_RUNTIME_DIR="$runtime" "$binary" server stop >/dev/null
 test ! -e "$runtime/daemon.sock"

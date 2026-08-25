@@ -1,6 +1,6 @@
 {
   "definitions": {
-    "shell_startup": "zsh process sourcing hermes.zsh with an already-built release binary",
+    "shell_startup": "zsh process sourcing zshctl.zsh with an already-built release binary",
     "cold_request": "first health request including daemon start",
     "warm_request": "health request to an already healthy daemon",
     "daemon_idle_memory": "resident set size after health and 1 second idle",

@@ -1,0 +1,26 @@
+#autoload
+emulate -L zsh
+local dir raw_command=${ZSHCTL_FZF_COMMAND:-fzf}
+local -a out fzf_cmd options
+out=("${(f)$(command zshctl --mode=ghq-list)}")
+(( ${#out} )) || return 1
+[[ -n $HOME ]] && out=("${(@)out//#$HOME/~}")
+fzf_cmd=(${(z)raw_command})
+(( ${#fzf_cmd} )) || fzf_cmd=(fzf)
+if [[ $fzf_cmd[1] == fzf-tmux ]]; then
+  local tmux_options=${ZSHCTL_FZF_TMUX_OPTIONS:-}
+  [[ -n $tmux_options ]] && options+=(${(z)tmux_options})
+fi
+options+=("--prompt=Project >" '--preview=cat $(eval echo {})/README.md' \
+  '--bind=ctrl-d:preview-page-down,ctrl-u:preview-page-up' --no-multi)
+dir=$(print -rl -- "${out[@]}" | "${fzf_cmd[@]}" "${options[@]}") || {
+  zle reset-prompt
+  return 1
+}
+[[ -n $dir ]] || { zle reset-prompt; return 1; }
+BUFFER="cd ${dir// /\\ }"
+zle reset-prompt
+zle accept-line
+if (( $+widgets[zshctl-ghq-cd-post-hook] )); then
+  ZSHCTL_GHQ_CD_DIR=$dir zle zshctl-ghq-cd-post-hook
+fi

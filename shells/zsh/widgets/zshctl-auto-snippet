@@ -1,0 +1,11 @@
+#autoload
+emulate -L zsh
+local -a out
+out=("${(f)$(command zshctl --mode=auto-snippet --input.lbuffer="$LBUFFER" --input.rbuffer="$RBUFFER")}")
+if [[ $ZSHCTL_ENABLE -eq 0 || $out[1] != success ]]; then
+  zle ${ZSHCTL_AUTO_SNIPPET_FALLBACK:-self-insert}
+  return
+fi
+BUFFER=$out[2]
+CURSOR=$out[3]
+zle reset-prompt

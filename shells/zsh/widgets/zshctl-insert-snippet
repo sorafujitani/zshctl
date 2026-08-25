@@ -1,0 +1,16 @@
+#autoload
+emulate -L zsh
+local -a choices out
+choices=("${(f)$(command zshctl --mode=snippet-list)}")
+local options=$choices[1]
+shift choices
+(( ${#choices} )) || return 0
+local selected
+selected=$(printf '%s\n' "${choices[@]}" | ${ZSHCTL_FZF_COMMAND:-fzf} ${(z)options}) || return 0
+selected=${selected%%:*}
+out=("${(f)$(command zshctl --mode=insert-snippet --input.snippet="$selected" --input.lbuffer="$LBUFFER" --input.rbuffer="$RBUFFER")}")
+if [[ $out[1] == success ]]; then
+  BUFFER=$out[2]
+  CURSOR=$out[3]
+fi
+zle reset-prompt

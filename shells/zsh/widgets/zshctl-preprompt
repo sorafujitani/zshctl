@@ -1,0 +1,27 @@
+#autoload
+emulate -L zsh
+local in_zle=0 template
+(( $+BUFFER )) && in_zle=1
+(( ${ZSHCTL_ENABLE:-1} )) || return 0
+if (( in_zle )); then
+  template=$BUFFER
+else
+  template=$*
+fi
+if [[ -z $template ]]; then
+  unset ZSHCTL_PREPROMPT_BUFFER ZSHCTL_PREPROMPT_CURSOR ZSHCTL_PREPROMPT_RAW
+  (( in_zle )) && zle reset-prompt
+  return 0
+fi
+local -a out
+out=("${(f)$(command zshctl --mode=preprompt --input.template="$template")}")
+if [[ $out[1] == success && -n ${out[2]-} ]]; then
+  typeset -g ZSHCTL_PREPROMPT_BUFFER=$out[2]
+  typeset -g ZSHCTL_PREPROMPT_CURSOR=$out[3]
+  typeset -g ZSHCTL_PREPROMPT_RAW=$template
+  if (( in_zle )); then BUFFER=$out[2]; CURSOR=$out[3]; fi
+else
+  unset ZSHCTL_PREPROMPT_BUFFER ZSHCTL_PREPROMPT_CURSOR ZSHCTL_PREPROMPT_RAW
+fi
+(( in_zle )) && zle reset-prompt
+return 0

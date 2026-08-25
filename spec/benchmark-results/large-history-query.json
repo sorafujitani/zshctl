@@ -1,7 +1,7 @@
 {
   "results": [
     {
-      "command": "HERMES_RUNTIME_DIR=/var/folders/ml/m13462dd6r7fg240mnvzk9hw0000gn/T/tmp.tSGkoQTmpN HERMES_DATA_DIR=/var/folders/ml/m13462dd6r7fg240mnvzk9hw0000gn/T/tmp.hvBBvMjR0F /Users/fujitanisora/ghq/github.com/sorafujitani/hermes.zsh/target/release/hermes history query --limit 1000 >/dev/null",
+      "command": "ZSHCTL_RUNTIME_DIR=/var/folders/ml/m13462dd6r7fg240mnvzk9hw0000gn/T/tmp.tSGkoQTmpN ZSHCTL_DATA_DIR=/var/folders/ml/m13462dd6r7fg240mnvzk9hw0000gn/T/tmp.hvBBvMjR0F /Users/fujitanisora/ghq/github.com/sorafujitani/zshctl/target/release/zshctl history query --limit 1000 >/dev/null",
       "mean": 0.06657296626,
       "stddev": 0.0060918974174972666,
       "median": 0.06559477666,

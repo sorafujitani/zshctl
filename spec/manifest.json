@@ -1,5 +1,5 @@
 {
-  "product": "hermes.zsh",
+  "product": "zshctl",
   "interfaceVersion": 1,
   "cliModes": [
     "pid", "chdir", "ghq-list", "snippet-list", "auto-snippet",
@@ -11,33 +11,33 @@
   ],
   "zsh": {
     "widgets": [
-      "hermes-auto-snippet", "hermes-auto-snippet-and-accept-line",
-      "hermes-completion", "hermes-ghq-cd", "hermes-history-selection",
-      "hermes-insert-snippet", "hermes-insert-space", "hermes-preprompt",
-      "hermes-preprompt-snippet", "hermes-smart-history-selection",
-      "hermes-snippet-next-placeholder", "hermes-toggle-auto-snippet"
+      "zshctl-auto-snippet", "zshctl-auto-snippet-and-accept-line",
+      "zshctl-completion", "zshctl-ghq-cd", "zshctl-history-selection",
+      "zshctl-insert-snippet", "zshctl-insert-space", "zshctl-preprompt",
+      "zshctl-preprompt-snippet", "zshctl-smart-history-selection",
+      "zshctl-snippet-next-placeholder", "zshctl-toggle-auto-snippet"
     ],
     "functions": [
-      "hermes-bind-default-keys", "hermes-call-client-and-fallback",
-      "hermes-enable-sock", "hermes-ensure-loaded", "hermes-history-hooks",
-      "hermes-init", "hermes-lazy-widget-dispatch", "hermes-preload",
-      "hermes-preprompt-hooks", "hermes-register-lazy-widget",
-      "hermes-register-lazy-widgets", "hermes-run-lazy-fallback",
-      "hermes-server"
+      "zshctl-bind-default-keys", "zshctl-call-client-and-fallback",
+      "zshctl-enable-sock", "zshctl-ensure-loaded", "zshctl-history-hooks",
+      "zshctl-init", "zshctl-lazy-widget-dispatch", "zshctl-preload",
+      "zshctl-preprompt-hooks", "zshctl-register-lazy-widget",
+      "zshctl-register-lazy-widgets", "zshctl-run-lazy-fallback",
+      "zshctl-server"
     ]
   },
   "environment": [
-    "HERMES_AUTO_SNIPPET_FALLBACK", "HERMES_CLIENT_TIMEOUT_SECONDS",
-    "HERMES_COMPLETION_FALLBACK", "HERMES_CONFIG",
-    "HERMES_DEFAULT_FZF_OPTIONS", "HERMES_DISABLE_AUTOMATIC_WORKSPACE_LOOKUP",
-    "HERMES_DISABLE_BUILTIN_COMPLETION", "HERMES_DISABLE_DAEMON",
-    "HERMES_DIRECT_FALLBACK", "HERMES_ENABLE", "HERMES_ENABLE_FZF_TMUX",
-    "HERMES_FZF_COMMAND", "HERMES_FZF_TMUX_OPTIONS",
-    "HERMES_GHQ_CD_DIR", "HERMES_GIT_CAT", "HERMES_GIT_TREE",
-    "HERMES_HISTORY_LIMIT", "HERMES_HISTORY_SESSION_ID", "HERMES_HOME",
-    "HERMES_LOCAL_CONFIG_PATH", "HERMES_PREPROMPT_BUFFER",
-    "HERMES_PREPROMPT_CURSOR", "HERMES_PREPROMPT_RAW", "HERMES_ROOT",
-    "HERMES_RUNTIME_DIR", "HERMES_SESSION_ID", "HERMES_SHELL"
+    "ZSHCTL_AUTO_SNIPPET_FALLBACK", "ZSHCTL_CLIENT_TIMEOUT_SECONDS",
+    "ZSHCTL_COMPLETION_FALLBACK", "ZSHCTL_CONFIG",
+    "ZSHCTL_DEFAULT_FZF_OPTIONS", "ZSHCTL_DISABLE_AUTOMATIC_WORKSPACE_LOOKUP",
+    "ZSHCTL_DISABLE_BUILTIN_COMPLETION", "ZSHCTL_DISABLE_DAEMON",
+    "ZSHCTL_DIRECT_FALLBACK", "ZSHCTL_ENABLE", "ZSHCTL_ENABLE_FZF_TMUX",
+    "ZSHCTL_FZF_COMMAND", "ZSHCTL_FZF_TMUX_OPTIONS",
+    "ZSHCTL_GHQ_CD_DIR", "ZSHCTL_GIT_CAT", "ZSHCTL_GIT_TREE",
+    "ZSHCTL_HISTORY_LIMIT", "ZSHCTL_HISTORY_SESSION_ID", "ZSHCTL_HOME",
+    "ZSHCTL_LOCAL_CONFIG_PATH", "ZSHCTL_PREPROMPT_BUFFER",
+    "ZSHCTL_PREPROMPT_CURSOR", "ZSHCTL_PREPROMPT_RAW", "ZSHCTL_ROOT",
+    "ZSHCTL_RUNTIME_DIR", "ZSHCTL_SESSION_ID", "ZSHCTL_SHELL"
   ],
   "config": {
     "fields": [
@@ -58,9 +58,9 @@
     "cliModes": "Rust unit tests and tests/daemon/lifecycle.sh",
     "zshWidgetsAndFunctions": "tests/zsh/smoke.zsh and tests/zsh/fallback.sh",
     "environment": "tests/config/cache.sh",
-    "configFields": "hermes-config unit tests and config integration tests",
+    "configFields": "zshctl-config unit tests and config integration tests",
     "gitCompletions": "spec/git-completions.json and tests/features/completion.sh",
-    "history": "hermes-history unit tests and tests/history/stress.sh"
+    "history": "zshctl-history unit tests and tests/history/stress.sh"
   },
   "v1Exclusions": ["fish shell integration", "Fish YAML history import"]
 }

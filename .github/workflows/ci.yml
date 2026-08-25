@@ -29,10 +29,10 @@ jobs:
       - run: cargo clippy --workspace --all-targets -- -D warnings
       - run: cargo test --workspace
       - run: cargo build --workspace --release
-      - run: HERMES_BIN="$PWD/target/release/hermes" zsh tests/zsh/smoke.zsh
-      - run: HERMES_BIN="$PWD/target/release/hermes" tests/daemon/lifecycle.sh
-      - run: HERMES_BIN="$PWD/target/release/hermes" tests/history/stress.sh
-      - run: HERMES_BIN="$PWD/target/release/hermes" tests/config/cache.sh
-      - run: HERMES_BIN="$PWD/target/release/hermes" tests/zsh/fallback.sh
-      - run: HERMES_BIN="$PWD/target/release/hermes" tests/features/completion.sh
-      - run: HERMES_BIN="$PWD/target/release/hermes" tests/release/matrix.sh
+      - run: ZSHCTL_BIN="$PWD/target/release/zshctl" zsh tests/zsh/smoke.zsh
+      - run: ZSHCTL_BIN="$PWD/target/release/zshctl" tests/daemon/lifecycle.sh
+      - run: ZSHCTL_BIN="$PWD/target/release/zshctl" tests/history/stress.sh
+      - run: ZSHCTL_BIN="$PWD/target/release/zshctl" tests/config/cache.sh
+      - run: ZSHCTL_BIN="$PWD/target/release/zshctl" tests/zsh/fallback.sh
+      - run: ZSHCTL_BIN="$PWD/target/release/zshctl" tests/features/completion.sh
+      - run: ZSHCTL_BIN="$PWD/target/release/zshctl" tests/release/matrix.sh

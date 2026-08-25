@@ -1,7 +1,7 @@
 #!/bin/sh
 set -eu
 
-binary=${HERMES_BIN:?HERMES_BIN must point to hermes}
+binary=${ZSHCTL_BIN:?ZSHCTL_BIN must point to zshctl}
 root=$(mktemp -d)
 runtime="$root/runtime"
 one="$root/one"
@@ -9,7 +9,7 @@ two="$root/two"
 bad="$root/bad"
 mkdir "$runtime" "$one" "$two" "$bad"
 chmod 700 "$runtime"
-trap 'HERMES_RUNTIME_DIR="$runtime" "$binary" server stop >/dev/null 2>&1 || true' EXIT HUP INT TERM
+trap 'ZSHCTL_RUNTIME_DIR="$runtime" "$binary" server stop >/dev/null 2>&1 || true' EXIT HUP INT TERM
 
 write_snippet() {
   directory=$1 text=$2
@@ -20,14 +20,14 @@ write_snippet "$two" two
 printf 'snippets: [' > "$bad/config.yml"
 
 request() {
-  HERMES_HOME="$1" HERMES_RUNTIME_DIR="$runtime" "$binary" \
+  ZSHCTL_HOME="$1" ZSHCTL_RUNTIME_DIR="$runtime" "$binary" \
     --mode=auto-snippet --input.lbuffer=swap
 }
 
 request "$one" | grep -q '^one $'
-daemon_pid=$(HERMES_RUNTIME_DIR="$runtime" "$binary" server status | jq -r '.health.pid')
+daemon_pid=$(ZSHCTL_RUNTIME_DIR="$runtime" "$binary" server status | jq -r '.health.pid')
 request "$two" | grep -q '^two $'
-test "$(HERMES_RUNTIME_DIR="$runtime" "$binary" server status | jq -r '.health.pid')" = "$daemon_pid"
+test "$(ZSHCTL_RUNTIME_DIR="$runtime" "$binary" server status | jq -r '.health.pid')" = "$daemon_pid"
 
 # A same-shape edit invalidates the content-hash key without a restart.
 write_snippet "$two" six

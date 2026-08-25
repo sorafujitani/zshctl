@@ -1,7 +1,7 @@
 {
   "results": [
     {
-      "command": "PATH=/Users/fujitanisora/ghq/github.com/sorafujitani/hermes.zsh/target/release:$PATH zsh -dfc 'source /Users/fujitanisora/ghq/github.com/sorafujitani/hermes.zsh/hermes.zsh'",
+      "command": "PATH=/Users/fujitanisora/ghq/github.com/sorafujitani/zshctl/target/release:$PATH zsh -dfc 'source /Users/fujitanisora/ghq/github.com/sorafujitani/zshctl/zshctl.zsh'",
       "mean": 0.00787488342,
       "stddev": 0.003353410026244284,
       "median": 0.007153316419999999,

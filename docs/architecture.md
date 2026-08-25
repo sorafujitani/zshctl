@@ -1,15 +1,15 @@
 # Architecture
 
-Hermes separates its shell interface from process ownership:
+zshctl separates its shell interface from process ownership:
 
-- `hermes-protocol` owns framed, versioned request and response types. It has no
+- `zshctl-protocol` owns framed, versioned request and response types. It has no
   Zsh or daemon lifecycle dependency.
-- `hermes-core` owns deterministic buffer, cursor, snippet, completion, and
+- `zshctl-core` owns deterministic buffer, cursor, snippet, completion, and
   preprompt transformations.
-- `hermes-config` discovers, validates, caches, and merges YAML configuration.
-- `hermes-history` owns the SQLite schema and transactional history operations.
-- `hermes-daemon` owns the per-user socket, caches, and sessions.
-- `hermes-cli` owns user-facing commands, stdout, stderr, and exit categories.
+- `zshctl-config` discovers, validates, caches, and merges YAML configuration.
+- `zshctl-history` owns the SQLite schema and transactional history operations.
+- `zshctl-daemon` owns the per-user socket, caches, and sessions.
+- `zshctl-cli` owns user-facing commands, stdout, stderr, and exit categories.
 
 The daemon socket is deterministic for a user. Shell session IDs isolate
 session-local state but never participate in daemon or socket ownership.
@@ -32,13 +32,13 @@ on its connection, while SQLite's busy timeout coordinates external readers.
 Schema changes run in one transaction, so a failed migration rolls back to the
 prior readable schema. Imports
 parse the complete input before their transaction; malformed input commits no
-rows. `hermes history integrity` exposes SQLite's integrity check. User data is
+rows. `zshctl history integrity` exposes SQLite's integrity check. User data is
 outside the versioned installation tree and is preserved by upgrade, rollback,
 and uninstall.
 
 ## Runtime boundary
 
-Hermes does not embed or spawn a JavaScript runtime. Configuration is
+zshctl does not embed or spawn a JavaScript runtime. Configuration is
 declarative YAML, and its parsing, validation, merge, fingerprinting, and cache
 invalidation run inside the Rust daemon. Unknown completion fields are rejected
 instead of being interpreted as executable hooks.
