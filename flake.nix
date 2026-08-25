@@ -15,7 +15,8 @@
       packages = forAllSystems (system:
         let
           pkgs = import nixpkgs { inherit system; };
-          version = "0.1.0";
+          version =
+            (builtins.fromTOML (builtins.readFile ./Cargo.toml)).workspace.package.version;
           zshctl = pkgs.rustPlatform.buildRustPackage {
             pname = "zshctl";
             inherit version;
