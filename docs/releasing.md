@@ -11,8 +11,8 @@ GitHub Release, binary archive names, and Homebrew Formula version must agree.
 4. Create and push an annotated `vMAJOR.MINOR.PATCH` tag:
 
    ```sh
-   git tag -a v0.1.0 -m "zshctl v0.1.0"
-   git push origin v0.1.0
+   git tag -a v0.1.1 -m "zshctl v0.1.1"
+   git push origin v0.1.1
    ```
 
 5. Wait for the `Release artifacts` workflow. It rejects a tag that does not

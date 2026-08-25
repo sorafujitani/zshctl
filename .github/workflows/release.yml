@@ -27,7 +27,7 @@ jobs:
             artifact: x86_64-unknown-linux-gnu
           - os: ubuntu-24.04-arm
             artifact: aarch64-unknown-linux-gnu
-          - os: macos-13
+          - os: macos-15-intel
             artifact: x86_64-apple-darwin
           - os: macos-14
             artifact: aarch64-apple-darwin

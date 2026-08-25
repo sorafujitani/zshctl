@@ -1203,7 +1203,7 @@ checksum = "29666d0abbfad1e3dc4dcf6144730dd3a3ab225bbbdac83319345b1b44ccfc1b"
 
 [[package]]
 name = "zshctl-cli"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "anyhow",
  "clap",
@@ -1217,7 +1217,7 @@ dependencies = [
 
 [[package]]
 name = "zshctl-config"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "serde",
  "serde_json",
@@ -1229,7 +1229,7 @@ dependencies = [
 
 [[package]]
 name = "zshctl-core"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "fancy-regex",
  "proptest",
@@ -1240,7 +1240,7 @@ dependencies = [
 
 [[package]]
 name = "zshctl-daemon"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "fancy-regex",
  "fs2",
@@ -1262,7 +1262,7 @@ dependencies = [
 
 [[package]]
 name = "zshctl-history"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "regex",
  "rusqlite",
@@ -1276,7 +1276,7 @@ dependencies = [
 
 [[package]]
 name = "zshctl-protocol"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "proptest",
  "serde",
