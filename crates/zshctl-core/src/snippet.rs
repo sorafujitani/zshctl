@@ -34,15 +34,71 @@ pub enum EditResult {
     Failure,
 }
 
+pub fn matching_snippet(snippets: &[Snippet], key: &str) -> Option<usize> {
+    let key = key.trim();
+    snippets
+        .iter()
+        .position(|snippet| {
+            snippet
+                .name
+                .as_deref()
+                .is_some_and(|candidate| candidate.trim() == key)
+        })
+        .or_else(|| {
+            snippets.iter().position(|snippet| {
+                snippet
+                    .keyword
+                    .as_deref()
+                    .is_some_and(|candidate| candidate.trim() == key)
+            })
+        })
+}
+
+pub fn matches_snippet_context(snippet: &Snippet, left: &str, right: &str) -> bool {
+    let Some(context) = &snippet.context else {
+        return true;
+    };
+    if context.global {
+        return true;
+    }
+    let left = normalize(left, false, true);
+    let right = normalize(right, true, false);
+    let full = format!("{left}{right}");
+    matches_optional(&context.buffer, &full)
+        && matches_optional(&context.lbuffer, &left)
+        && matches_optional(&context.rbuffer, &right)
+}
+
 pub fn insert_snippet(snippets: &[Snippet], name: &str, left: &str, right: &str) -> EditResult {
-    let Some(snippet) = snippets.iter().find(|snippet| {
-        snippet
-            .name
-            .as_deref()
-            .is_some_and(|candidate| candidate.trim() == name.trim())
-    }) else {
+    let Some(index) = matching_snippet(snippets, name) else {
         return EditResult::Failure;
     };
+    insert_snippet_at_with_context(snippets, index, left, right, left, right)
+}
+
+pub fn insert_snippet_at(
+    snippets: &[Snippet],
+    index: usize,
+    left: &str,
+    right: &str,
+) -> EditResult {
+    insert_snippet_at_with_context(snippets, index, left, right, left, right)
+}
+
+pub fn insert_snippet_at_with_context(
+    snippets: &[Snippet],
+    index: usize,
+    left: &str,
+    right: &str,
+    context_left: &str,
+    context_right: &str,
+) -> EditResult {
+    let Some(snippet) = snippets.get(index) else {
+        return EditResult::Failure;
+    };
+    if !matches_snippet_context(snippet, context_left, context_right) {
+        return EditResult::Failure;
+    }
     let left = normalize(left, false, true);
     let right = normalize(right, true, false);
     let prepared = apply_first_placeholder(&snippet.snippet, snippet.snippet.chars().count() + 1);
@@ -72,20 +128,13 @@ pub fn auto_snippet(snippets: &[Snippet], left: &str, right: &str) -> EditResult
             tokens[..tokens.len() - 1].join(" ")
         ),
     };
-    let full = format!("{left}{right}");
     for snippet in snippets {
         if snippet.keyword.as_deref() != Some(last.as_str()) {
             continue;
         }
-        if let Some(context) = &snippet.context {
-            if !context.global
-                && (!matches_optional(&context.buffer, &full)
-                    || !matches_optional(&context.lbuffer, &left)
-                    || !matches_optional(&context.rbuffer, &right))
-            {
-                continue;
-            }
-        } else if last != first {
+        if !matches_snippet_context(snippet, &left, &right)
+            || (snippet.context.is_none() && last != first)
+        {
             continue;
         }
         let prepared =
@@ -112,19 +161,10 @@ pub fn matching_auto_snippet(snippets: &[Snippet], left: &str, right: &str) -> O
     let tokens = shell_words::split(left.trim()).unwrap_or_default();
     let first = tokens.first()?;
     let last = tokens.last()?;
-    let full = format!("{left}{right}");
     snippets.iter().position(|snippet| {
-        if snippet.keyword.as_deref() != Some(last.as_str()) {
-            return false;
-        }
-        if let Some(context) = &snippet.context {
-            context.global
-                || (matches_optional(&context.buffer, &full)
-                    && matches_optional(&context.lbuffer, &left)
-                    && matches_optional(&context.rbuffer, &right))
-        } else {
-            last == first
-        }
+        snippet.keyword.as_deref() == Some(last.as_str())
+            && matches_snippet_context(snippet, &left, &right)
+            && (snippet.context.is_some() || last == first)
     })
 }
 
@@ -218,8 +258,48 @@ mod tests {
     }
 
     #[test]
+    fn unnamed_snippet_can_be_inserted_by_keyword() {
+        let snippets = vec![Snippet {
+            name: None,
+            keyword: Some("gs".into()),
+            snippet: "git status".into(),
+            context: None,
+            evaluate: false,
+        }];
+        assert_eq!(
+            insert_snippet(&snippets, "gs", "", ""),
+            EditResult::Success {
+                buffer: "git status ".into(),
+                cursor: 11,
+            }
+        );
+    }
+
+    #[test]
     fn matching_index_uses_the_same_context_rules() {
         assert_eq!(matching_auto_snippet(&fixture(), "find . S", ""), Some(1));
         assert_eq!(matching_auto_snippet(&fixture(), "S", ""), None);
+    }
+
+    #[test]
+    fn direct_insertion_rejects_a_context_mismatch() {
+        let snippets = vec![Snippet {
+            name: Some("contextual".into()),
+            keyword: Some("ctx".into()),
+            snippet: "echo context".into(),
+            context: Some(SnippetContext {
+                lbuffer: Some("^allowed$".into()),
+                ..Default::default()
+            }),
+            evaluate: false,
+        }];
+        assert_eq!(
+            insert_snippet(&snippets, "contextual", "blocked", ""),
+            EditResult::Failure
+        );
+        assert!(matches!(
+            insert_snippet(&snippets, "contextual", "allowed", ""),
+            EditResult::Success { .. }
+        ));
     }
 }

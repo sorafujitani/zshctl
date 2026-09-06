@@ -22,6 +22,12 @@ struct Cli {
     input_rbuffer: String,
     #[arg(long = "input.snippet", default_value = "")]
     input_snippet: String,
+    #[arg(long = "input.snippet-id", default_value = "")]
+    input_snippet_id: String,
+    #[arg(long = "input.context-lbuffer", default_value = "")]
+    input_context_lbuffer: String,
+    #[arg(long = "input.context-rbuffer", default_value = "")]
+    input_context_rbuffer: String,
     #[arg(long = "input.template", default_value = "")]
     input_template: String,
     #[arg(long = "input.dir")]
@@ -643,6 +649,16 @@ async fn execute_mode(mode: &str, cli: &Cli, paths: &RuntimePaths) -> anyhow::Re
                 "rbuffer": cli.input_rbuffer,
             }),
         ),
+        "insert-snippet-id" => (
+            "snippet.insert-id",
+            json!({
+                "id": cli.input_snippet_id,
+                "lbuffer": cli.input_lbuffer,
+                "rbuffer": cli.input_rbuffer,
+                "context_lbuffer": cli.input_context_lbuffer,
+                "context_rbuffer": cli.input_context_rbuffer,
+            }),
+        ),
         "preprompt" => (
             "snippet.preprompt",
             json!({ "template": cli.input_template }),
@@ -664,6 +680,13 @@ async fn execute_mode(mode: &str, cli: &Cli, paths: &RuntimePaths) -> anyhow::Re
             }),
         ),
         "snippet-list" => ("snippet.list", json!({})),
+        "snippet-candidates" => (
+            "snippet.candidates",
+            json!({
+                "lbuffer": cli.input_lbuffer,
+                "rbuffer": cli.input_rbuffer,
+            }),
+        ),
         "ghq-list" => ("ghq.list", json!({})),
         "pid" => {
             let response = send(paths, Operation::Health).await?;
@@ -742,10 +765,13 @@ fn print_mode_response(mode: &str, response: Response) -> anyhow::Result<()> {
         println!("{}", value["name"].as_str().unwrap_or_default());
         return Ok(());
     }
-    if mode == "snippet-list" {
+    if matches!(mode, "snippet-list" | "snippet-candidates") {
         if value["status"] != "success" {
             println!("failure");
             return Ok(());
+        }
+        if mode == "snippet-candidates" {
+            println!("success");
         }
         println!("{}", value["options"].as_str().unwrap_or_default());
         for item in value["items"].as_array().into_iter().flatten() {

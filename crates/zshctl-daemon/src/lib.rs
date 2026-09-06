@@ -1,6 +1,7 @@
 use fs2::FileExt;
 use serde::{Deserialize, Serialize};
 use std::fs::{self, File, OpenOptions};
+use std::hash::{DefaultHasher, Hash, Hasher};
 use std::io;
 use std::os::unix::fs::{MetadataExt, OpenOptionsExt, PermissionsExt};
 use std::os::unix::process::CommandExt;
@@ -19,7 +20,8 @@ use tracing::{debug, warn};
 use zshctl_config::{ConfigCache, Settings};
 use zshctl_core::completion::{CompletionRule, matching_rule, normalize_candidates};
 use zshctl_core::snippet::{
-    EditResult, auto_snippet, insert_snippet, matching_auto_snippet, prepare_preprompt,
+    EditResult, Snippet, auto_snippet, insert_snippet_at_with_context, matches_snippet_context,
+    matching_auto_snippet, matching_snippet, prepare_preprompt,
 };
 use zshctl_history::{
     DedupeStrategy, DeletedFilter, Entry as HistoryEntry, ExportFormat, HistoryStore, QueryFilter,
@@ -673,29 +675,85 @@ async fn dispatch_feature(
                 .get("rbuffer")
                 .and_then(serde_json::Value::as_str)
                 .unwrap_or_default();
-            if let Some(index) = settings.snippets.iter().position(|snippet| {
-                snippet
-                    .name
-                    .as_deref()
-                    .is_some_and(|name| name.trim() == snippet_name.trim())
-            }) {
-                if settings.snippets[index].evaluate {
-                    let evaluated = evaluate_snippet(
-                        &settings.snippets[index],
-                        Path::new(&request.working_directory),
+            let edit = if let Some(index) = matching_snippet(&settings.snippets, snippet_name) {
+                insert_selected_snippet(&mut settings, index, left, right, left, right, request)
+                    .await
+            } else {
+                EditResult::Failure
+            };
+            serialize_edit(edit)
+        }
+        "snippet.insert-id" => {
+            let mut settings = state.settings(request).await?;
+            let id = required_string(&payload, "id")?;
+            let left = payload
+                .get("lbuffer")
+                .and_then(serde_json::Value::as_str)
+                .unwrap_or_default();
+            let right = payload
+                .get("rbuffer")
+                .and_then(serde_json::Value::as_str)
+                .unwrap_or_default();
+            let context_left = payload
+                .get("context_lbuffer")
+                .and_then(serde_json::Value::as_str)
+                .unwrap_or(left);
+            let context_right = payload
+                .get("context_rbuffer")
+                .and_then(serde_json::Value::as_str)
+                .unwrap_or(right);
+            let edit = if let Some((index, fingerprint)) =
+                snippet_index(id).filter(|(index, _)| *index < settings.snippets.len())
+            {
+                if snippet_fingerprint(&settings.snippets[index]) != fingerprint {
+                    EditResult::Failure
+                } else {
+                    insert_selected_snippet(
+                        &mut settings,
+                        index,
+                        left,
+                        right,
+                        context_left,
+                        context_right,
                         request,
                     )
-                    .await;
-                    settings.snippets[index].snippet = evaluated;
-                    settings.snippets[index].evaluate = false;
+                    .await
                 }
-            }
-            serialize_edit(insert_snippet(
-                &settings.snippets,
-                snippet_name,
-                left,
-                right,
-            ))
+            } else {
+                EditResult::Failure
+            };
+            serialize_edit(edit)
+        }
+        "snippet.candidates" => {
+            let settings = state.settings(request).await?;
+            let left = required_string(&payload, "lbuffer")?;
+            let right = payload
+                .get("rbuffer")
+                .and_then(serde_json::Value::as_str)
+                .unwrap_or_default();
+            let items = settings
+                .snippets
+                .iter()
+                .enumerate()
+                .filter(|(_, snippet)| {
+                    !snippet.snippet.contains('\n')
+                        && matches_snippet_context(snippet, left, right)
+                        && !snippet_search_label(snippet).is_empty()
+                })
+                .map(|(index, snippet)| {
+                    format!(
+                        "{}\t{}\t{}",
+                        snippet_id(index, snippet),
+                        snippet_search_label(snippet),
+                        snippet_display_label(snippet),
+                    )
+                })
+                .collect::<Vec<_>>();
+            Ok(serde_json::json!({
+                "status": "success",
+                "options": "--prompt='Snippet> ' --height='80%' --no-multi",
+                "items": items,
+            }))
         }
         "snippet.list" => {
             let settings = state.settings(request).await?;
@@ -706,11 +764,21 @@ async fn dispatch_feature(
                 .collect::<Vec<_>>();
             let width = snippets
                 .iter()
-                .filter_map(|snippet| snippet.name.as_deref())
-                .map(|name| name.chars().count())
+                .filter_map(|snippet| {
+                    snippet
+                        .name
+                        .as_deref()
+                        .filter(|name| !name.is_empty())
+                        .or_else(|| {
+                            snippet
+                                .keyword
+                                .as_deref()
+                                .filter(|keyword| !keyword.is_empty())
+                        })
+                })
+                .map(|name| name.chars().count() + 1)
                 .max()
-                .unwrap_or(0)
-                + 1;
+                .unwrap_or(1);
             let items = snippets
                 .iter()
                 .map(|snippet| {
@@ -718,14 +786,29 @@ async fn dispatch_feature(
                         .name
                         .as_deref()
                         .filter(|name| !name.is_empty())
-                        .map(|name| format!("{name}:"))
-                        .unwrap_or_default();
+                        .or_else(|| {
+                            snippet
+                                .keyword
+                                .as_deref()
+                                .filter(|keyword| !keyword.is_empty())
+                        });
+                    let label = name.map(|name| format!("{name}:")).unwrap_or_default();
+                    let keyword = if snippet.name.as_deref().is_some_and(|name| !name.is_empty()) {
+                        snippet
+                            .keyword
+                            .as_deref()
+                            .filter(|keyword| !keyword.is_empty())
+                            .map(|keyword| format!("  [{keyword}]"))
+                            .unwrap_or_default()
+                    } else {
+                        String::new()
+                    };
                     let text = snippet
                         .snippet
                         .replace('\\', "\\\\")
                         .replace('\r', "\\r")
                         .replace('\t', "\\t");
-                    format!("{name:<width$}  {text}")
+                    format!("{label:<width$}  {text}{keyword}")
                 })
                 .collect::<Vec<_>>();
             Ok(serde_json::json!({
@@ -1370,6 +1453,111 @@ async fn run_bounded_command(
         .map_err(|_| feature_error(ErrorCode::Timeout, "source command timed out"))?
 }
 
+async fn insert_selected_snippet(
+    settings: &mut Settings,
+    index: usize,
+    left: &str,
+    right: &str,
+    context_left: &str,
+    context_right: &str,
+    request: &Request,
+) -> EditResult {
+    let matches_context = settings
+        .snippets
+        .get(index)
+        .is_some_and(|snippet| matches_snippet_context(snippet, context_left, context_right));
+    if !matches_context {
+        return EditResult::Failure;
+    }
+    if settings.snippets[index].evaluate {
+        let evaluated = evaluate_snippet(
+            &settings.snippets[index],
+            Path::new(&request.working_directory),
+            request,
+        )
+        .await;
+        settings.snippets[index].snippet = evaluated;
+        settings.snippets[index].evaluate = false;
+    }
+    insert_snippet_at_with_context(
+        &settings.snippets,
+        index,
+        left,
+        right,
+        context_left,
+        context_right,
+    )
+}
+
+fn snippet_id(index: usize, snippet: &Snippet) -> String {
+    format!("s{:04}-{:016x}", index + 1, snippet_fingerprint(snippet))
+}
+
+fn snippet_index(id: &str) -> Option<(usize, u64)> {
+    let (index, fingerprint) = id.trim().strip_prefix('s')?.split_once('-')?;
+    let index = index.parse::<usize>().ok()?.checked_sub(1)?;
+    let fingerprint = u64::from_str_radix(fingerprint, 16).ok()?;
+    Some((index, fingerprint))
+}
+
+fn snippet_fingerprint(snippet: &Snippet) -> u64 {
+    let serialized = serde_json::to_vec(snippet).expect("snippet is serializable");
+    let mut hasher = DefaultHasher::new();
+    serialized.hash(&mut hasher);
+    hasher.finish()
+}
+
+fn snippet_search_label(snippet: &Snippet) -> String {
+    [snippet.name.as_ref(), snippet.keyword.as_ref()]
+        .into_iter()
+        .flatten()
+        .map(|value| sanitize_snippet_field(value).trim().to_owned())
+        .filter(|value| !value.is_empty())
+        .collect::<Vec<_>>()
+        .join(" ")
+}
+
+fn snippet_display_label(snippet: &Snippet) -> String {
+    let name = snippet
+        .name
+        .as_deref()
+        .map(sanitize_snippet_field)
+        .map(|value| value.trim().to_owned())
+        .filter(|value| !value.is_empty());
+    let keyword = snippet
+        .keyword
+        .as_deref()
+        .map(sanitize_snippet_field)
+        .map(|value| value.trim().to_owned())
+        .filter(|value| !value.is_empty());
+    let label = name.clone().or_else(|| keyword.clone()).unwrap_or_default();
+    let keyword_suffix = if name.is_some() {
+        keyword
+            .map(|value| format!(" [{value}]"))
+            .unwrap_or_default()
+    } else {
+        String::new()
+    };
+    if label.is_empty() {
+        sanitize_snippet_field(&snippet.snippet)
+    } else {
+        format!(
+            "{label}:  {}{keyword_suffix}",
+            sanitize_snippet_field(&snippet.snippet)
+        )
+    }
+}
+
+fn sanitize_snippet_field(value: &str) -> String {
+    value
+        .chars()
+        .map(|character| match character {
+            '\t' | '\r' | '\n' => ' ',
+            character => character,
+        })
+        .collect()
+}
+
 async fn evaluate_snippet(
     snippet: &zshctl_core::snippet::Snippet,
     cwd: &Path,
@@ -1503,6 +1691,8 @@ fn health() -> Health {
             "config.effective".into(),
             "snippet.auto".into(),
             "snippet.insert".into(),
+            "snippet.insert-id".into(),
+            "snippet.candidates".into(),
             "snippet.list".into(),
             "snippet.next-placeholder".into(),
             "snippet.preprompt".into(),
@@ -1682,6 +1872,73 @@ mod tests {
         };
         assert_eq!(value(first)["buffer"], "first  ");
         assert_eq!(value(second)["buffer"], "second  ");
+    }
+
+    #[tokio::test]
+    async fn stale_candidate_id_is_rejected_after_evaluated_snippet_changes() {
+        let temporary = tempfile::tempdir().unwrap();
+        fs::set_permissions(temporary.path(), fs::Permissions::from_mode(0o700)).unwrap();
+        let config = temporary.path().join("snippets.yml");
+        fs::write(
+            &config,
+            "snippets:\n  - name: target\n    snippet: \"printf old\"\n    evaluate: true\n",
+        )
+        .unwrap();
+        let paths = RuntimePaths::from_directory(temporary.path().to_path_buf()).unwrap();
+        let state = DaemonState::new(paths);
+        let set_environment = |request: &mut Request| {
+            request
+                .environment
+                .insert("HOME".into(), temporary.path().display().to_string());
+            request
+                .environment
+                .insert("ZSHCTL_CONFIG".into(), config.display().to_string());
+        };
+
+        let mut candidates = Request::new(
+            Operation::Feature {
+                name: "snippet.candidates".into(),
+                payload: serde_json::json!({ "lbuffer": "", "rbuffer": "" }),
+            },
+            "session",
+            "/tmp",
+        );
+        set_environment(&mut candidates);
+        let candidates = dispatch(candidates, &state).await;
+        let ResponseResult::Success { value } = candidates.result else {
+            panic!("candidate request failed");
+        };
+        let id = value["items"][0]
+            .as_str()
+            .and_then(|item| item.split_once('\t'))
+            .map(|(id, _)| id.to_owned())
+            .expect("candidate must contain an id");
+
+        fs::write(
+            &config,
+            "snippets:\n  - name: target\n    snippet: \"printf new\"\n    evaluate: true\n",
+        )
+        .unwrap();
+        let mut insert = Request::new(
+            Operation::Feature {
+                name: "snippet.insert-id".into(),
+                payload: serde_json::json!({
+                    "id": id,
+                    "lbuffer": "",
+                    "rbuffer": "",
+                    "context_lbuffer": "",
+                    "context_rbuffer": ""
+                }),
+            },
+            "session",
+            "/tmp",
+        );
+        set_environment(&mut insert);
+        let insert = dispatch(insert, &state).await;
+        let ResponseResult::Success { value } = insert.result else {
+            panic!("insert request failed");
+        };
+        assert_eq!(value["status"], "failure");
     }
 
     #[tokio::test]

@@ -1,12 +1,74 @@
 #autoload
 emulate -L zsh
 local callback callback_kind callback_zero command_line options source_command
-local -a out selected option_words
+local fallback search_input leading raw_fzf_command snippet_options delimiter
+local snippet_selected snippet_key has_match candidate candidate_label
+local -a out selected option_words candidate_out snippet_choices fzf_cmd fzf_options insert_out
 
+fallback=${ZSHCTL_COMPLETION_FALLBACK:-expand-or-complete}
 out=("${(f)$(command zshctl --mode=completion --input.lbuffer="$LBUFFER" --input.rbuffer="$RBUFFER")}")
 if [[ $out[1] != success ]]; then
-  zle ${ZSHCTL_COMPLETION_FALLBACK:-expand-or-complete}
-  return
+  if [[ $LBUFFER == *$'\n'* || $RBUFFER == *$'\n'* ]]; then
+    zle "$fallback"
+    return
+  fi
+
+  search_input=$LBUFFER
+  leading=
+  while [[ -n $search_input && ${search_input[1]} == [[:space:]] ]]; do
+    leading+="${search_input[1]}"
+    search_input=${search_input[2,-1]}
+  done
+  if [[ -n $RBUFFER || $search_input == *[[:space:]]* ]]; then
+    zle "$fallback"
+    return
+  fi
+
+  candidate_out=("${(f)$(command zshctl --mode=snippet-candidates --input.lbuffer="$LBUFFER" --input.rbuffer="$RBUFFER")}")
+  if [[ $candidate_out[1] != success ]]; then
+    zle "$fallback"
+    return
+  fi
+  snippet_options=${candidate_out[2]-}
+  snippet_choices=("${candidate_out[@]}")
+  shift 2 snippet_choices
+  if (( ! ${#snippet_choices} )); then
+    zle "$fallback"
+    return
+  fi
+
+  if [[ -n $search_input ]]; then
+    has_match=0
+    for candidate in "${snippet_choices[@]}"; do
+      candidate_label=${candidate#*$'\t'}
+      candidate_label=${candidate_label%%$'\t'*}
+      if [[ $candidate_label == *"$search_input"* ]]; then
+        has_match=1
+        break
+      fi
+    done
+    (( has_match )) || { zle "$fallback"; return; }
+  fi
+
+  raw_fzf_command=${ZSHCTL_FZF_COMMAND:-fzf}
+  fzf_cmd=(${(Q)${(z)raw_fzf_command}})
+  (( ${#fzf_cmd} )) || fzf_cmd=(fzf)
+  fzf_options=(${(Q)${(z)snippet_options}})
+  delimiter=$'\t'
+  fzf_options+=("--delimiter=$delimiter" "--nth=2" "--with-nth=2..")
+  [[ -n $search_input ]] && fzf_options+=("--query=$search_input")
+  snippet_selected=$(print -rl -- "${snippet_choices[@]}" | "${fzf_cmd[@]}" "${fzf_options[@]}") || return 0
+  [[ -n $snippet_selected ]] || return 0
+
+  snippet_key=${snippet_selected%%$'\t'*}
+  [[ -n $snippet_key ]] || return 0
+  insert_out=("${(f)$(command zshctl --mode=insert-snippet-id --input.snippet-id="$snippet_key" --input.lbuffer= --input.rbuffer= --input.context-lbuffer="$LBUFFER" --input.context-rbuffer="$RBUFFER")}")
+  if [[ $insert_out[1] == success ]]; then
+    BUFFER="${leading}${insert_out[2]}"
+    CURSOR=$((${#leading} + insert_out[3]))
+  fi
+  zle reset-prompt
+  return 0
 fi
 source_command=$out[2]
 options=$out[3]

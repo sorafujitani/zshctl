@@ -29,6 +29,82 @@ for widget in zshctl-auto-snippet zshctl-completion zshctl-history-selection \
   [[ -n ${widgets[$widget]-} ]]
 done
 
+# Tab opens the snippet picker for matching line-start input and replaces the
+# typed keyword without changing the buffer when fzf is cancelled.
+(
+  fake_root=$(mktemp -d)
+  fake_zshctl=$fake_root/zshctl
+  fake_fzf=$fake_root/fzf
+  fake_fzf_args=$fake_root/fzf-args
+  cat >"$fake_zshctl" <<'EOF'
+#!/bin/sh
+case "$*" in
+  *--mode=completion*)
+    printf 'failure\n'
+    ;;
+  *--mode=snippet-candidates*)
+    printf 'success\n'
+    printf '%s\n' '--no-multi'
+    printf '%s\n' 's0001-0000000000000001	git status gs	git status:  git status  [gs]'
+    printf '%s\n' 's0002-0000000000000002	cd	cd:  cd /tmp'
+    ;;
+  *--mode=insert-snippet-id*)
+    printf 'success\n'
+    printf 'git status \n'
+    printf '11\n'
+    ;;
+  *)
+    exit 1
+    ;;
+esac
+EOF
+  cat >"$fake_fzf" <<'EOF'
+#!/bin/sh
+: >"$FAKE_FZF_ARGS"
+printf '%s\n' "$@" >"$FAKE_FZF_ARGS"
+[ "${FAKE_FZF_CANCEL:-0}" = 1 ] && exit 1
+IFS= read -r selected || exit 1
+printf '%s\n' "$selected"
+EOF
+  chmod +x "$fake_zshctl" "$fake_fzf"
+  PATH="$fake_root:$PATH"
+  export PATH ZSHCTL_FZF_COMMAND="$fake_fzf" FAKE_FZF_ARGS="$fake_fzf_args"
+  last_call=
+  zle() { last_call="$*"; }
+  ZSHCTL_COMPLETION_FALLBACK=expand-or-complete
+  autoload +X zshctl-completion
+  trap 'rm -rf "$fake_root"' EXIT
+
+  BUFFER=gs
+  CURSOR=2
+  LBUFFER=gs
+  RBUFFER=
+  zshctl-completion
+  [[ $BUFFER == 'git status ' ]]
+  [[ $CURSOR == 11 ]]
+  grep -qx -- '--query=gs' "$fake_fzf_args"
+
+  last_call=
+  export FAKE_FZF_CANCEL=1
+  BUFFER=gs
+  CURSOR=2
+  LBUFFER=gs
+  RBUFFER=
+  zshctl-completion
+  [[ $BUFFER == gs ]]
+  [[ $CURSOR == 2 ]]
+  unset FAKE_FZF_CANCEL
+
+  last_call=
+  BUFFER='cd /tmp'
+  CURSOR=7
+  LBUFFER='cd /tmp'
+  RBUFFER=
+  zshctl-completion
+  [[ $BUFFER == 'cd /tmp' ]]
+  [[ $last_call == expand-or-complete ]]
+)
+
 # Enter must never fall back to self-insert and place a CR in the buffer.
 (
   calls=()

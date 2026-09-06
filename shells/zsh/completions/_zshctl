@@ -1,7 +1,7 @@
 #compdef zshctl zshctld
 
 _arguments -C \
-  '--mode=[run a zshctl feature mode]:mode:(auto-snippet insert-snippet snippet-list preprompt preprompt-snippet next-placeholder completion ghq-list chdir pid)' \
+  '--mode=[run a zshctl feature mode]:mode:(auto-snippet insert-snippet insert-snippet-id snippet-list snippet-candidates preprompt preprompt-snippet next-placeholder completion ghq-list chdir pid)' \
   '1:command:(server capabilities request history)' \
   '*::argument:->args'
 

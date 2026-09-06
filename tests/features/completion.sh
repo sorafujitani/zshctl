@@ -31,6 +31,30 @@ candidates=$(cd "$repo" && sh -c "$source_command")
 printf '%s\n' "$candidates" | grep -q tracked.txt
 printf '%s\n' "$candidates" | fzf --filter=tracked --select-1 --exit-0 | grep -q tracked.txt
 
+snippet_config="$root/snippets.yml"
+cat >"$snippet_config" <<'EOF'
+snippets:
+  - name: git status
+    keyword: gs
+    snippet: git status
+EOF
+snippet_list=$(ZSHCTL_DISABLE_DAEMON=1 ZSHCTL_CONFIG="$snippet_config" \
+  ZSHCTL_RUNTIME_DIR="$runtime" "$binary" --mode=snippet-list)
+printf '%s\n' "$snippet_list" | grep -q 'git status:.*git status.*\[gs\]'
+
+# Exercise the real CLI protocol and fzf options together, not just mocked rows.
+ZSHCTL_DISABLE_DAEMON=1 ZSHCTL_CONFIG="$snippet_config" \
+  ZSHCTL_RUNTIME_DIR="$runtime" ZSHCTL_FZF_COMMAND='fzf --filter=gs' \
+  zsh -dfc '
+    unset ZSHCTL_BOOTSTRAPPED ZSHCTL_ROOT
+    PATH="${ZSHCTL_BIN:h}:$PATH"
+    source "$1/zshctl.zsh"
+    zle() { :; }
+    BUFFER=gs; LBUFFER=gs; RBUFFER=; CURSOR=2
+    zshctl-completion
+    [[ $BUFFER == "git status " && $CURSOR == 11 ]]
+  ' zsh "$(CDPATH= cd -- "$(dirname -- "$0")/../.." && pwd)"
+
 ghq_root="$root/ghq"
 ghq_repo="$ghq_root/github.com/example/project"
 mkdir -p "$ghq_repo"
