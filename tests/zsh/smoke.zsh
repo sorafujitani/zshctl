@@ -64,7 +64,7 @@ EOF
 printf '%s\n' "$@" >"$FAKE_FZF_ARGS"
 [ "${FAKE_FZF_CANCEL:-0}" = 1 ] && exit 1
 IFS= read -r selected || exit 1
-printf '%s\n' "$selected"
+printf '%s\n' "${FAKE_FZF_KEY:-}" "$selected"
 EOF
   chmod +x "$fake_zshctl" "$fake_fzf"
   PATH="$fake_root:$PATH"
@@ -96,6 +96,13 @@ EOF
   [[ $CURSOR == 2 ]]
   [[ $last_call == reset-prompt ]]
   unset FAKE_FZF_CANCEL
+
+  export FAKE_FZF_KEY=tab
+  last_call=
+  zshctl-completion
+  [[ $BUFFER == gs && $CURSOR == 2 ]]
+  [[ $last_call == expand-or-complete ]]
+  unset FAKE_FZF_KEY
 
   last_call=
   BUFFER=; LBUFFER=; RBUFFER=; CURSOR=0

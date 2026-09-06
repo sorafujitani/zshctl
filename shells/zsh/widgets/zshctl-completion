@@ -42,11 +42,18 @@ if [[ $out[1] != success ]]; then
   (( ${#fzf_cmd} )) || fzf_cmd=(fzf)
   fzf_options=(${(Q)${(z)snippet_options}})
   delimiter=$'\t'
-  fzf_options+=("--delimiter=$delimiter" "--nth=.." "--with-nth=3")
+  fzf_options+=("--delimiter=$delimiter" "--nth=.." "--with-nth=3"
+    "--expect=tab" "--header=Enter: expand | Tab: normal completion | Esc: cancel")
   [[ -n $search_input ]] && fzf_options+=("--query=$search_input")
   snippet_selected=$(print -rl -- "${snippet_choices[@]}" | "${fzf_cmd[@]}" "${fzf_options[@]}") || { zle reset-prompt; return 0; }
   [[ -n $snippet_selected ]] || { zle reset-prompt; return 0; }
 
+  if [[ $snippet_selected == tab || $snippet_selected == tab$'\n'* ]]; then
+    zle "$fallback"
+    return 0
+  fi
+  # --expect emits an empty key line for Enter; --filter emits only the row.
+  snippet_selected=${snippet_selected#*$'\n'}
   snippet_key=${snippet_selected%%$'\t'*}
   [[ -n $snippet_key ]] || return 0
   insert_out=("${(f)$(command zshctl --mode=insert-snippet-id --input.snippet-id="$snippet_key" --input.lbuffer= --input.rbuffer= --input.context-lbuffer="$LBUFFER" --input.context-rbuffer="$RBUFFER")}")

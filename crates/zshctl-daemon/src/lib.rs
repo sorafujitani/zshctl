@@ -740,7 +740,10 @@ async fn dispatch_feature(
                         && matches_snippet_context(snippet, left, right)
                         && right.is_empty()
                         && !left.trim_start().is_empty()
-                        && snippet.keyword.as_deref() == Some(left.trim_start())
+                        && snippet
+                            .keyword
+                            .as_deref()
+                            .is_some_and(|keyword| keyword.starts_with(left.trim_start()))
                         && !snippet_search_label(snippet).is_empty()
                 })
                 .map(|(index, snippet)| {
@@ -1878,24 +1881,29 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn snippet_candidates_require_exact_keyword() {
+    async fn snippet_candidates_match_keyword_prefixes() {
         let temporary = tempfile::tempdir().unwrap();
         fs::set_permissions(temporary.path(), fs::Permissions::from_mode(0o700)).unwrap();
         let config = temporary.path().join("snippets.yml");
         fs::write(
             &config,
-            "snippets:\n  - name: target\n    keyword: gs\n    snippet: \"printf target\"\n",
+            "snippets:\n  - name: aws_dev\n    keyword: aws_dev\n    snippet: \"printf aws_dev\"\n  - name: aws_prod\n    keyword: aws_prod\n    snippet: \"printf aws_prod\"\n  - name: cx\n    keyword: cx\n    snippet: \"printf cx\"\n  - name: cxl\n    keyword: cxl\n    snippet: \"printf cxl\"\n  - name: cxa\n    keyword: cxa\n    snippet: \"printf cxa\"\n",
         )
         .unwrap();
         let paths = RuntimePaths::from_directory(temporary.path().to_path_buf()).unwrap();
         let state = DaemonState::new(paths);
 
-        for (lbuffer, has_candidate) in [("", false), ("g", false), ("gs arg", false), ("gs", true)]
-        {
+        for (lbuffer, rbuffer, expected_count) in [
+            ("", "", 0),
+            ("aws", "", 2),
+            ("cx", "", 3),
+            ("aws arg", "", 0),
+            ("aws", "arg", 0),
+        ] {
             let mut request = Request::new(
                 Operation::Feature {
                     name: "snippet.candidates".into(),
-                    payload: serde_json::json!({ "lbuffer": lbuffer, "rbuffer": "" }),
+                    payload: serde_json::json!({ "lbuffer": lbuffer, "rbuffer": rbuffer }),
                 },
                 "session",
                 "/tmp",
@@ -1912,9 +1920,9 @@ mod tests {
             };
             let items = value["items"].as_array().expect("items must be an array");
             assert_eq!(
-                !items.is_empty(),
-                has_candidate,
-                "unexpected candidates for {lbuffer:?}"
+                items.len(),
+                expected_count,
+                "unexpected candidates for {lbuffer:?} {rbuffer:?}"
             );
         }
     }
