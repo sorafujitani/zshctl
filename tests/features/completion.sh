@@ -15,13 +15,13 @@ repo="$root/repository"
 git init -q "$repo"
 git -C "$repo" config user.name zshctl
 git -C "$repo" config user.email zshctl@example.invalid
-printf 'tracked\n' > "$repo/tracked.txt"
+printf 'tracked\n' >"$repo/tracked.txt"
 git -C "$repo" add tracked.txt
 git -C "$repo" commit -qm initial
 git -C "$repo" branch feature
 git -C "$repo" -c tag.gpgSign=false tag v1
 git -C "$repo" remote add origin https://example.invalid/repository.git
-printf 'changed\n' >> "$repo/tracked.txt"
+printf 'changed\n' >>"$repo/tracked.txt"
 
 completion=$(cd "$repo" && ZSHCTL_RUNTIME_DIR="$runtime" "$binary" \
   --mode=completion --input.lbuffer='git add ')
@@ -64,27 +64,20 @@ ZSHCTL_DISABLE_DAEMON=1 ZSHCTL_CONFIG="$snippet_config" \
     [[ $BUFFER == "git status " && $CURSOR == 11 ]]
   ' zsh "$(CDPATH= cd -- "$(dirname -- "$0")/../.." && pwd)"
 
-# Search the same candidate set by name, keyword, and un-evaluated body.
-for selection in \
-  'ad_dev|printf ad_dev ' \
-  'cx_aws_dev|printf cx ' \
-  'pi_aws_dev|printf pi_aws_dev '; do
-  query=${selection%%|*}
-  expected=${selection#*|}
-  env ZSHCTL_DISABLE_DAEMON=1 ZSHCTL_CONFIG="$snippet_config" \
-    ZSHCTL_RUNTIME_DIR="$runtime" ZSHCTL_FZF_COMMAND="fzf --exact --filter=$query" \
-    zsh -dfc '
-      unset ZSHCTL_BOOTSTRAPPED ZSHCTL_ROOT
-      PATH="${ZSHCTL_BIN:h}:$PATH"
-      source "$1/zshctl.zsh"
-      zle() { :; }
-      BUFFER=aws; LBUFFER=aws; RBUFFER=; CURSOR=3
-      zshctl-completion
-      [[ $BUFFER == "$2" && $CURSOR -gt 3 ]]
-    ' zsh "$(CDPATH= cd -- "$(dirname -- "$0")/../.." && pwd)" "$expected"
-done
+# Candidate rows expose keyword as the only searchable field. Names and bodies
+# remain in the display description but must not become search fields.
+snippet_candidates=$(ZSHCTL_DISABLE_DAEMON=1 ZSHCTL_CONFIG="$snippet_config" \
+  ZSHCTL_RUNTIME_DIR="$runtime" "$binary" --mode=snippet-candidates \
+  --input.lbuffer=aws)
+printf '%s\n' "$snippet_candidates" | awk -F '\t' '
+$2 == "deploy" && $3 == "ad_dev:  printf ad_dev" { deploy = 1 }
+$2 == "cx_aws_dev" && $3 == "same:name:  printf cx" { keyword = 1 }
+$2 == "unrelated" && $3 == "other:  printf pi_aws_dev" { body = 1 }
+$2 == "ad_dev" || $2 == "pi_aws_dev" { exit 1 }
+END { exit !(deploy && keyword && body) }
+'
 
-# Ctrl-X Ctrl-S uses the same ID-based path, including a colon in the name.
+# Ctrl-X Ctrl-S uses the same keyword-only ID-based path, including a colon in the name.
 env ZSHCTL_DISABLE_DAEMON=1 ZSHCTL_CONFIG="$snippet_config" \
   ZSHCTL_RUNTIME_DIR="$runtime" ZSHCTL_FZF_COMMAND='fzf --exact --filter=cx_aws_dev' \
   zsh -dfc '

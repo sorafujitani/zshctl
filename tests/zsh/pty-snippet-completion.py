@@ -145,6 +145,12 @@ def main() -> int:
   - name: body_only
     keyword: body_only
     snippet: 'print -r -- aws_body_match >> "$PTY_MARKER"'
+  - name: cx_keyword
+    keyword: cx_aws_dev
+    snippet: 'print -r -- cx-keyword-selected >> "$PTY_MARKER"'
+  - name: unrelated_body
+    keyword: unrelated_keyword
+    snippet: 'print -r -- cx-body-match >> "$PTY_MARKER"'
   - name: same:name
     keyword: colon_keyword
     snippet: 'print -r -- colon-selected >> "$PTY_MARKER"'
@@ -298,10 +304,19 @@ exit "$status"
                 finish_fzf()
                 return take_snapshot()
 
+            def search_without_selection(query: str) -> tuple[str, int]:
+                nonlocal current_case
+                current_case = f"non-keyword search: {query}"
+                clear_line()
+                terminal.send(b"\x18\x13")
+                wait_fzf_started()
+                terminal.send(query.encode() + b"\r")
+                finish_fzf()
+                return take_snapshot()
+
             expected = {
-                "aws_name_match": 'print -r -- name-selected >> "$PTY_MARKER" ',
                 "aws_keyword_match": 'print -r -- keyword-selected >> "$PTY_MARKER" ',
-                "aws_body_match": 'print -r -- aws_body_match >> "$PTY_MARKER" ',
+                "cx_aws_dev": 'print -r -- cx-keyword-selected >> "$PTY_MARKER" ',
             }
             for query, expected_buffer in expected.items():
                 selected_buffer, selected_cursor = select_snippet(query)
@@ -314,6 +329,16 @@ exit "$status"
                     )
                 if marker.exists():
                     raise RuntimeError("snippet was executed instead of inserted")
+
+            for query in ("aws_name_match", "aws_body_match", "cx-body-match"):
+                selected_buffer, selected_cursor = search_without_selection(query)
+                if selected_buffer or selected_cursor:
+                    raise RuntimeError(
+                        f"non-keyword query selected a snippet: "
+                        f"{query!r} -> {selected_buffer!r}, {selected_cursor}"
+                    )
+                if marker.exists():
+                    raise RuntimeError("non-keyword query selected a snippet")
 
             for cancel_key in (b"\x1b", b"\x03"):
                 current_case = f"snippet cancellation: {cancel_key!r}"

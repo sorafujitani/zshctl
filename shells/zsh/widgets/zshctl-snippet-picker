@@ -48,7 +48,7 @@ fzf_cmd=(${(Q)${(z)raw_fzf_command}})
 # process-wide fzf defaults that can force an unintended selection.
 fzf_options=(${(Q)${(z)snippet_options}})
 delimiter=$'\t'
-fzf_options+=("--delimiter=$delimiter" "--nth=1" "--with-nth=3"
+fzf_options+=("--delimiter=$delimiter" "--nth=1" "--with-nth=2,3"
   "--expect=tab" "--exit-0" "--no-select-1" "--no-multi"
   "--header=Enter: expand | Tab: normal completion | Esc: cancel")
 [[ -n $snippet_query ]] && fzf_options+=("--query=$snippet_query")

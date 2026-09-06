@@ -742,7 +742,7 @@ async fn dispatch_feature(
                     format!(
                         "{}\t{}\t{}",
                         snippet_id(index, snippet),
-                        snippet_search_label(snippet),
+                        snippet_keyword_label(snippet),
                         snippet_display_label(snippet),
                     )
                 })
@@ -1505,45 +1505,30 @@ fn snippet_fingerprint(snippet: &Snippet) -> u64 {
     hasher.finish()
 }
 
-fn snippet_search_label(snippet: &Snippet) -> String {
-    [
-        snippet.name.as_deref(),
-        snippet.keyword.as_deref(),
-        Some(snippet.snippet.as_str()),
-    ]
-    .into_iter()
-    .flatten()
-    .map(|value| sanitize_snippet_field(value).trim().to_owned())
-    .filter(|value| !value.is_empty())
-    .collect::<Vec<_>>()
-    .join(" ")
+fn snippet_keyword_label(snippet: &Snippet) -> String {
+    snippet
+        .keyword
+        .as_deref()
+        .map(sanitize_snippet_field)
+        .map(|value| value.trim().to_owned())
+        .filter(|value| !value.is_empty())
+        .unwrap_or_default()
 }
 
 fn snippet_display_label(snippet: &Snippet) -> String {
+    let keyword = snippet_keyword_label(snippet);
     let name = snippet
         .name
         .as_deref()
         .map(sanitize_snippet_field)
         .map(|value| value.trim().to_owned())
-        .filter(|value| !value.is_empty());
-    let keyword = snippet
-        .keyword
-        .as_deref()
-        .map(sanitize_snippet_field)
-        .map(|value| value.trim().to_owned())
-        .filter(|value| !value.is_empty());
-    let label = name.clone().or_else(|| keyword.clone()).unwrap_or_default();
-    let keyword_suffix = match (name.as_deref(), keyword.as_deref()) {
-        (Some(name), Some(keyword)) if name != keyword => format!(" [{keyword}]"),
-        _ => String::new(),
-    };
-    if label.is_empty() {
-        sanitize_snippet_field(&snippet.snippet)
+        .filter(|value| !value.is_empty())
+        .filter(|name| name != &keyword);
+    let body = sanitize_snippet_field(&snippet.snippet);
+    if let Some(name) = name {
+        format!("{name}:  {body}")
     } else {
-        format!(
-            "{label}:  {}{keyword_suffix}",
-            sanitize_snippet_field(&snippet.snippet)
-        )
+        body
     }
 }
 
@@ -1942,18 +1927,21 @@ mod tests {
             panic!("candidate request failed");
         };
         let items = value["items"].as_array().expect("items must be an array");
-        assert!(items.iter().any(|item| {
-            item.as_str()
-                .is_some_and(|item| item.contains("ad_dev") && item.contains("deploy"))
-        }));
-        assert!(items.iter().any(|item| {
-            item.as_str()
-                .is_some_and(|item| item.contains("cx_aws_dev"))
-        }));
-        assert!(items.iter().any(|item| {
-            item.as_str()
-                .is_some_and(|item| item.contains("pi_aws_dev"))
-        }));
+        let fields_for = |keyword: &str| {
+            items.iter().find_map(|item| {
+                let fields = item.as_str()?.split('\t').collect::<Vec<_>>();
+                (fields.get(1) == Some(&keyword)).then_some(fields)
+            })
+        };
+        let deploy = fields_for("deploy").expect("deploy candidate");
+        assert_eq!(deploy.len(), 3);
+        assert!(deploy[0].starts_with("s0001-"));
+        assert_eq!(deploy[1], "deploy");
+        assert_eq!(deploy[2], "ad_dev:  printf ad_dev");
+        let shared = fields_for("cx_aws_dev").expect("cx_aws_dev candidate");
+        assert_eq!(shared[2], "shared:  printf shared");
+        let unrelated = fields_for("unrelated").expect("unrelated candidate");
+        assert_eq!(unrelated[2], "other:  printf pi_aws_dev");
         assert!(
             !items
                 .iter()
@@ -1968,7 +1956,7 @@ mod tests {
         let config = temporary.path().join("snippets.yml");
         fs::write(
             &config,
-            "snippets:\n  - name: 'same:name'\n    keyword: first\n    snippet: \"printf first\\tline\"\n  - name: 'same:name'\n    keyword: second\n    snippet: \"printf second\"\n",
+            "snippets:\n  - name: 'same:name'\n    keyword: first\n    snippet: \"printf first\\tline\"\n  - name: 'same:name'\n    keyword: second\n    snippet: \"printf second\"\n  - name: same_keyword\n    keyword: same_keyword\n    snippet: \"printf duplicate\"\n",
         )
         .unwrap();
         let paths = RuntimePaths::from_directory(temporary.path().to_path_buf()).unwrap();
@@ -1992,17 +1980,23 @@ mod tests {
             panic!("candidate request failed");
         };
         let items = value["items"].as_array().expect("items must be an array");
-        assert_eq!(items.len(), 2);
+        assert_eq!(items.len(), 3);
         let ids = items
             .iter()
             .map(|item| item.as_str().unwrap().split('\t').next().unwrap())
             .collect::<Vec<_>>();
         assert_ne!(ids[0], ids[1]);
-        assert!(
-            items
-                .iter()
-                .all(|item| item.as_str().unwrap().split('\t').count() == 3)
-        );
+        let fields = items
+            .iter()
+            .map(|item| item.as_str().unwrap().split('\t').collect::<Vec<_>>())
+            .collect::<Vec<_>>();
+        assert!(fields.iter().all(|fields| fields.len() == 3));
+        assert_eq!(fields[0][1], "first");
+        assert_eq!(fields[0][2], "same:name:  printf first line");
+        assert_eq!(fields[1][1], "second");
+        assert_eq!(fields[1][2], "same:name:  printf second");
+        assert_eq!(fields[2][1], "same_keyword");
+        assert_eq!(fields[2][2], "printf duplicate");
 
         let mut insert = Request::new(
             Operation::Feature {

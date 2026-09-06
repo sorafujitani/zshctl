@@ -45,8 +45,8 @@ case "$*" in
   *--mode=snippet-candidates*)
     printf 'success\n'
     printf '%s\n' '--filter=trusted --no-multi'
-    printf '%s\n' 's0001-0000000000000001	git status gs	git status:  git status  [gs]'
-    printf '%s\n' 's0002-0000000000000002	cd	cd:  cd /tmp'
+    printf '%s\n' 's0001-0000000000000001	gs	git status:  git status'
+    printf '%s\n' 's0002-0000000000000002		cd:  cd /tmp'
     ;;
   *--mode=insert-snippet-id*)
     printf 'success\n'
@@ -93,7 +93,7 @@ EOF
   grep -qx -- '--query=gs' "$fake_fzf_args"
   grep -qx -- '--filter=trusted' "$fake_fzf_args"
   grep -qx -- '--nth=1' "$fake_fzf_args"
-  grep -qx -- '--with-nth=3' "$fake_fzf_args"
+  grep -qx -- '--with-nth=2,3' "$fake_fzf_args"
   grep -qx -- '--exit-0' "$fake_fzf_args"
   grep -qx -- '--no-select-1' "$fake_fzf_args"
   grep -qx 'env:FZF_DEFAULT_OPTS=<unset>' "$fake_fzf_args"
