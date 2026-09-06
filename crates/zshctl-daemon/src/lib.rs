@@ -738,6 +738,9 @@ async fn dispatch_feature(
                 .filter(|(_, snippet)| {
                     !snippet.snippet.contains('\n')
                         && matches_snippet_context(snippet, left, right)
+                        && right.is_empty()
+                        && !left.trim_start().is_empty()
+                        && snippet.keyword.as_deref() == Some(left.trim_start())
                         && !snippet_search_label(snippet).is_empty()
                 })
                 .map(|(index, snippet)| {
@@ -751,7 +754,7 @@ async fn dispatch_feature(
                 .collect::<Vec<_>>();
             Ok(serde_json::json!({
                 "status": "success",
-                "options": "--prompt='Snippet> ' --height='80%' --no-multi",
+                "options": "--prompt='Snippet> ' --height='40%' --layout=reverse --no-multi",
                 "items": items,
             }))
         }
@@ -813,7 +816,7 @@ async fn dispatch_feature(
                 .collect::<Vec<_>>();
             Ok(serde_json::json!({
                 "status": "success",
-                "options": "--delimiter=':' --prompt='Snippet> ' --height='80%' --no-multi",
+                "options": "--delimiter=':' --prompt='Snippet> ' --height='40%' --layout=reverse --no-multi",
                 "items": items,
             }))
         }
@@ -1875,13 +1878,55 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn snippet_candidates_require_exact_keyword() {
+        let temporary = tempfile::tempdir().unwrap();
+        fs::set_permissions(temporary.path(), fs::Permissions::from_mode(0o700)).unwrap();
+        let config = temporary.path().join("snippets.yml");
+        fs::write(
+            &config,
+            "snippets:\n  - name: target\n    keyword: gs\n    snippet: \"printf target\"\n",
+        )
+        .unwrap();
+        let paths = RuntimePaths::from_directory(temporary.path().to_path_buf()).unwrap();
+        let state = DaemonState::new(paths);
+
+        for (lbuffer, has_candidate) in [("", false), ("g", false), ("gs arg", false), ("gs", true)]
+        {
+            let mut request = Request::new(
+                Operation::Feature {
+                    name: "snippet.candidates".into(),
+                    payload: serde_json::json!({ "lbuffer": lbuffer, "rbuffer": "" }),
+                },
+                "session",
+                "/tmp",
+            );
+            request
+                .environment
+                .insert("HOME".into(), temporary.path().display().to_string());
+            request
+                .environment
+                .insert("ZSHCTL_CONFIG".into(), config.display().to_string());
+            let response = dispatch(request, &state).await;
+            let ResponseResult::Success { value } = response.result else {
+                panic!("candidate request failed");
+            };
+            let items = value["items"].as_array().expect("items must be an array");
+            assert_eq!(
+                !items.is_empty(),
+                has_candidate,
+                "unexpected candidates for {lbuffer:?}"
+            );
+        }
+    }
+
+    #[tokio::test]
     async fn stale_candidate_id_is_rejected_after_evaluated_snippet_changes() {
         let temporary = tempfile::tempdir().unwrap();
         fs::set_permissions(temporary.path(), fs::Permissions::from_mode(0o700)).unwrap();
         let config = temporary.path().join("snippets.yml");
         fs::write(
             &config,
-            "snippets:\n  - name: target\n    snippet: \"printf old\"\n    evaluate: true\n",
+            "snippets:\n  - name: target\n    keyword: gs\n    snippet: \"printf old\"\n    evaluate: true\n",
         )
         .unwrap();
         let paths = RuntimePaths::from_directory(temporary.path().to_path_buf()).unwrap();
@@ -1898,7 +1943,7 @@ mod tests {
         let mut candidates = Request::new(
             Operation::Feature {
                 name: "snippet.candidates".into(),
-                payload: serde_json::json!({ "lbuffer": "", "rbuffer": "" }),
+                payload: serde_json::json!({ "lbuffer": "gs", "rbuffer": "" }),
             },
             "session",
             "/tmp",
@@ -1916,7 +1961,7 @@ mod tests {
 
         fs::write(
             &config,
-            "snippets:\n  - name: target\n    snippet: \"printf new\"\n    evaluate: true\n",
+            "snippets:\n  - name: target\n    keyword: gs\n    snippet: \"printf new\"\n    evaluate: true\n",
         )
         .unwrap();
         let mut insert = Request::new(
@@ -1924,7 +1969,7 @@ mod tests {
                 name: "snippet.insert-id".into(),
                 payload: serde_json::json!({
                     "id": id,
-                    "lbuffer": "",
+                    "lbuffer": "gs",
                     "rbuffer": "",
                     "context_lbuffer": "",
                     "context_rbuffer": ""

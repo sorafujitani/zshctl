@@ -83,6 +83,7 @@ EOF
   [[ $BUFFER == 'git status ' ]]
   [[ $CURSOR == 11 ]]
   grep -qx -- '--query=gs' "$fake_fzf_args"
+  grep -qx -- '--with-nth=3' "$fake_fzf_args"
 
   last_call=
   export FAKE_FZF_CANCEL=1
@@ -93,7 +94,14 @@ EOF
   zshctl-completion
   [[ $BUFFER == gs ]]
   [[ $CURSOR == 2 ]]
+  [[ $last_call == reset-prompt ]]
   unset FAKE_FZF_CANCEL
+
+  last_call=
+  BUFFER=; LBUFFER=; RBUFFER=; CURSOR=0
+  zshctl-completion
+  [[ -z $BUFFER && $CURSOR == 0 ]]
+  [[ $last_call == expand-or-complete ]]
 
   last_call=
   BUFFER='cd /tmp'

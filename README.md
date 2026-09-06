@@ -62,7 +62,7 @@ The default bindings are:
 | --- | --- |
 | Space | Expand an automatic snippet, otherwise insert a space |
 | Enter | Expand an automatic snippet, then accept the line |
-| Tab | Open dedicated completion, or search snippets on an empty line or line-start word |
+| Tab | Open dedicated completion; offer snippets for an exact keyword, otherwise use normal completion |
 | Ctrl-R | Open Smart History |
 | Ctrl-X Ctrl-S | Select and insert a snippet |
 | Ctrl-X Ctrl-G | Select and enter a `ghq` repository |

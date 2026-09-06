@@ -6,7 +6,11 @@ local options=$choices[1]
 shift choices
 (( ${#choices} )) || return 0
 local selected
-selected=$(printf '%s\n' "${choices[@]}" | ${ZSHCTL_FZF_COMMAND:-fzf} ${(z)options}) || return 0
+local -a fzf_cmd fzf_options
+fzf_cmd=(${(Q)${(z)${ZSHCTL_FZF_COMMAND:-fzf}}})
+fzf_options=(${(Q)${(z)options}})
+selected=$(printf '%s\n' "${choices[@]}" | "${fzf_cmd[@]}" "${fzf_options[@]}") || { zle reset-prompt; return 0; }
+[[ -n $selected ]] || { zle reset-prompt; return 0; }
 selected=${selected%%:*}
 out=("${(f)$(command zshctl --mode=insert-snippet --input.snippet="$selected" --input.lbuffer="$LBUFFER" --input.rbuffer="$RBUFFER")}")
 if [[ $out[1] == success ]]; then

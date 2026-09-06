@@ -2,7 +2,7 @@
 emulate -L zsh
 local callback callback_kind callback_zero command_line options source_command
 local fallback search_input leading raw_fzf_command snippet_options delimiter
-local snippet_selected snippet_key has_match candidate candidate_label
+local snippet_selected snippet_key
 local -a out selected option_words candidate_out snippet_choices fzf_cmd fzf_options insert_out
 
 fallback=${ZSHCTL_COMPLETION_FALLBACK:-expand-or-complete}
@@ -19,7 +19,7 @@ if [[ $out[1] != success ]]; then
     leading+="${search_input[1]}"
     search_input=${search_input[2,-1]}
   done
-  if [[ -n $RBUFFER || $search_input == *[[:space:]]* ]]; then
+  if [[ -z $search_input || -n $RBUFFER || $search_input == *[[:space:]]* ]]; then
     zle "$fallback"
     return
   fi
@@ -37,28 +37,15 @@ if [[ $out[1] != success ]]; then
     return
   fi
 
-  if [[ -n $search_input ]]; then
-    has_match=0
-    for candidate in "${snippet_choices[@]}"; do
-      candidate_label=${candidate#*$'\t'}
-      candidate_label=${candidate_label%%$'\t'*}
-      if [[ $candidate_label == *"$search_input"* ]]; then
-        has_match=1
-        break
-      fi
-    done
-    (( has_match )) || { zle "$fallback"; return; }
-  fi
-
   raw_fzf_command=${ZSHCTL_FZF_COMMAND:-fzf}
   fzf_cmd=(${(Q)${(z)raw_fzf_command}})
   (( ${#fzf_cmd} )) || fzf_cmd=(fzf)
   fzf_options=(${(Q)${(z)snippet_options}})
   delimiter=$'\t'
-  fzf_options+=("--delimiter=$delimiter" "--nth=2" "--with-nth=2..")
+  fzf_options+=("--delimiter=$delimiter" "--nth=.." "--with-nth=3")
   [[ -n $search_input ]] && fzf_options+=("--query=$search_input")
-  snippet_selected=$(print -rl -- "${snippet_choices[@]}" | "${fzf_cmd[@]}" "${fzf_options[@]}") || return 0
-  [[ -n $snippet_selected ]] || return 0
+  snippet_selected=$(print -rl -- "${snippet_choices[@]}" | "${fzf_cmd[@]}" "${fzf_options[@]}") || { zle reset-prompt; return 0; }
+  [[ -n $snippet_selected ]] || { zle reset-prompt; return 0; }
 
   snippet_key=${snippet_selected%%$'\t'*}
   [[ -n $snippet_key ]] || return 0
@@ -84,9 +71,9 @@ fi
 
 option_words=(${(z)options})
 command_line="$source_command | ${ZSHCTL_FZF_COMMAND:-fzf} ${(j: :)${(q)option_words}}"
-selected=("${(0)$(eval "$command_line")}") || return 0
+selected=("${(0)$(eval "$command_line")}") || { zle reset-prompt; return 0; }
 selected=(${(@)selected:#})
-(( ${#selected} )) || return 0
+(( ${#selected} )) || { zle reset-prompt; return 0; }
 
 if [[ $callback_kind == shell && -n $callback ]]; then
   if (( callback_zero )); then
