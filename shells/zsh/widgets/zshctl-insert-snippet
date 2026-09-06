@@ -1,20 +1,12 @@
 #autoload
 emulate -L zsh
-local -a choices out
-choices=("${(f)$(command zshctl --mode=snippet-list)}")
-local options=$choices[1]
-shift choices
-(( ${#choices} )) || return 0
-local selected
-local -a fzf_cmd fzf_options
-fzf_cmd=(${(Q)${(z)${ZSHCTL_FZF_COMMAND:-fzf}}})
-fzf_options=(${(Q)${(z)options}})
-selected=$(printf '%s\n' "${choices[@]}" | "${fzf_cmd[@]}" "${fzf_options[@]}") || { zle reset-prompt; return 0; }
-[[ -n $selected ]] || { zle reset-prompt; return 0; }
-selected=${selected%%:*}
-out=("${(f)$(command zshctl --mode=insert-snippet --input.snippet="$selected" --input.lbuffer="$LBUFFER" --input.rbuffer="$RBUFFER")}")
-if [[ $out[1] == success ]]; then
-  BUFFER=$out[2]
-  CURSOR=$out[3]
+autoload -Uz zshctl-snippet-picker
+local picker_status
+zshctl-snippet-picker insert >/dev/null
+picker_status=$?
+if (( picker_status == 2 )); then
+  zle "${ZSHCTL_COMPLETION_FALLBACK:-expand-or-complete}"
+else
+  zle reset-prompt
 fi
-zle reset-prompt
+return 0

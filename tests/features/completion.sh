@@ -37,6 +37,15 @@ snippets:
   - name: git status
     keyword: gs
     snippet: git status
+  - name: ad_dev
+    keyword: deploy
+    snippet: printf ad_dev
+  - name: same:name
+    keyword: cx_aws_dev
+    snippet: printf cx
+  - name: other
+    keyword: unrelated
+    snippet: printf pi_aws_dev
 EOF
 snippet_list=$(ZSHCTL_DISABLE_DAEMON=1 ZSHCTL_CONFIG="$snippet_config" \
   ZSHCTL_RUNTIME_DIR="$runtime" "$binary" --mode=snippet-list)
@@ -53,6 +62,39 @@ ZSHCTL_DISABLE_DAEMON=1 ZSHCTL_CONFIG="$snippet_config" \
     BUFFER=gs; LBUFFER=gs; RBUFFER=; CURSOR=2
     zshctl-completion
     [[ $BUFFER == "git status " && $CURSOR == 11 ]]
+  ' zsh "$(CDPATH= cd -- "$(dirname -- "$0")/../.." && pwd)"
+
+# Search the same candidate set by name, keyword, and un-evaluated body.
+for selection in \
+  'ad_dev|printf ad_dev ' \
+  'cx_aws_dev|printf cx ' \
+  'pi_aws_dev|printf pi_aws_dev '; do
+  query=${selection%%|*}
+  expected=${selection#*|}
+  env ZSHCTL_DISABLE_DAEMON=1 ZSHCTL_CONFIG="$snippet_config" \
+    ZSHCTL_RUNTIME_DIR="$runtime" ZSHCTL_FZF_COMMAND="fzf --exact --filter=$query" \
+    zsh -dfc '
+      unset ZSHCTL_BOOTSTRAPPED ZSHCTL_ROOT
+      PATH="${ZSHCTL_BIN:h}:$PATH"
+      source "$1/zshctl.zsh"
+      zle() { :; }
+      BUFFER=aws; LBUFFER=aws; RBUFFER=; CURSOR=3
+      zshctl-completion
+      [[ $BUFFER == "$2" && $CURSOR -gt 3 ]]
+    ' zsh "$(CDPATH= cd -- "$(dirname -- "$0")/../.." && pwd)" "$expected"
+done
+
+# Ctrl-X Ctrl-S uses the same ID-based path, including a colon in the name.
+env ZSHCTL_DISABLE_DAEMON=1 ZSHCTL_CONFIG="$snippet_config" \
+  ZSHCTL_RUNTIME_DIR="$runtime" ZSHCTL_FZF_COMMAND='fzf --exact --filter=cx_aws_dev' \
+  zsh -dfc '
+    unset ZSHCTL_BOOTSTRAPPED ZSHCTL_ROOT
+    PATH="${ZSHCTL_BIN:h}:$PATH"
+    source "$1/zshctl.zsh"
+    zle() { :; }
+    BUFFER=aws; LBUFFER=aws; RBUFFER=; CURSOR=3
+    zshctl-insert-snippet
+    [[ $BUFFER == "printf cx " && $CURSOR == 10 ]]
   ' zsh "$(CDPATH= cd -- "$(dirname -- "$0")/../.." && pwd)"
 
 ghq_root="$root/ghq"

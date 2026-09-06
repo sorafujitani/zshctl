@@ -1,0 +1,108 @@
+#autoload
+emulate -L zsh
+
+local picker_mode=${1:-insert}
+local original_lbuffer=$LBUFFER
+local original_rbuffer=$RBUFFER
+local snippet_query=
+local leading=
+local input_word=$original_lbuffer
+local raw_fzf_command=${ZSHCTL_FZF_COMMAND:-fzf}
+local snippet_options delimiter selected row snippet_key
+local -a candidate_out snippet_choices fzf_cmd fzf_options insert_out
+
+while [[ -n $input_word &&
+  ( ${input_word[1]} == ' ' || ${input_word[1]} == $'\t' ) ]]; do
+  leading+="${input_word[1]}"
+  input_word=${input_word[2,-1]}
+done
+
+if [[ -z $original_rbuffer && -n $input_word ]] &&
+  [[ $input_word =~ '^[[:alnum:]_-]+$' ]]; then
+  snippet_query=$input_word
+fi
+
+if [[ $picker_mode == tab ]]; then
+  if [[ -n $original_rbuffer || -z $input_word ]] ||
+    ! [[ $input_word =~ '^[[:alnum:]_-]+$' ]]; then
+    return 2
+  fi
+fi
+
+candidate_out=("${(f)$(command zshctl --mode=snippet-candidates --input.lbuffer="$original_lbuffer" --input.rbuffer="$original_rbuffer")}")
+if [[ $candidate_out[1] != success ]]; then
+  [[ $picker_mode == tab ]] && return 2
+  return 1
+fi
+snippet_options=${candidate_out[2]-}
+snippet_choices=("${candidate_out[@]}")
+shift 2 snippet_choices
+if (( ! ${#snippet_choices} )); then
+  [[ $picker_mode == tab ]] && return 2
+  return 1
+fi
+
+fzf_cmd=(${(Q)${(z)raw_fzf_command}})
+(( ${#fzf_cmd} )) || fzf_cmd=(fzf)
+# Keep options from the trusted snippet configuration, while ignoring only
+# process-wide fzf defaults that can force an unintended selection.
+fzf_options=(${(Q)${(z)snippet_options}})
+delimiter=$'\t'
+fzf_options+=("--delimiter=$delimiter" "--nth=1" "--with-nth=3"
+  "--expect=tab" "--exit-0" "--no-select-1" "--no-multi"
+  "--header=Enter: expand | Tab: normal completion | Esc: cancel")
+[[ -n $snippet_query ]] && fzf_options+=("--query=$snippet_query")
+
+# Do not let the user's global fzf options turn this into a non-interactive
+# selector or select the only row before the user confirms it.
+selected=$(
+  unset FZF_DEFAULT_OPTS FZF_DEFAULT_OPTS_FILE
+  print -rl -- "${snippet_choices[@]}" | "${fzf_cmd[@]}" "${fzf_options[@]}"
+)
+local fzf_status=$?
+if (( fzf_status == 130 )); then
+  return 1
+fi
+if (( fzf_status != 0 )); then
+  [[ $picker_mode == tab ]] && return 2
+  return 1
+fi
+[[ -n $selected ]] || { [[ $picker_mode == tab ]] && return 2; return 1; }
+
+if [[ $selected == tab || $selected == tab$'\n'* ]]; then
+  return 2
+fi
+# --expect emits an empty key line for Enter; a filter-style fzf may emit the
+# row directly, so remove the first line only when it is present.
+if [[ $selected == $'\n'* ]]; then
+  row=${selected#$'\n'}
+else
+  row=${selected#*$'\n'}
+fi
+snippet_key=${row%%$'\t'*}
+[[ -n $snippet_key ]] || { [[ $picker_mode == tab ]] && return 2; return 1; }
+
+local insert_lbuffer=$original_lbuffer
+local insert_rbuffer=$original_rbuffer
+local replace_word=0
+if [[ -z $original_rbuffer && -n $input_word && $input_word =~ '^[[:alnum:]_-]+$' ]]; then
+  replace_word=1
+  insert_lbuffer=
+  insert_rbuffer=
+fi
+insert_out=("${(f)$(command zshctl --mode=insert-snippet-id \
+  --input.snippet-id="$snippet_key" \
+  --input.lbuffer="$insert_lbuffer" --input.rbuffer="$insert_rbuffer" \
+  --input.context-lbuffer="$original_lbuffer" \
+  --input.context-rbuffer="$original_rbuffer")}")
+if [[ $insert_out[1] != success ]]; then
+  return 1
+fi
+if (( replace_word )); then
+  BUFFER="${leading}${insert_out[2]}"
+  CURSOR=$((${#leading} + insert_out[3]))
+else
+  BUFFER=$insert_out[2]
+  CURSOR=$insert_out[3]
+fi
+return 0

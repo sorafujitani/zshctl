@@ -736,15 +736,7 @@ async fn dispatch_feature(
                 .iter()
                 .enumerate()
                 .filter(|(_, snippet)| {
-                    !snippet.snippet.contains('\n')
-                        && matches_snippet_context(snippet, left, right)
-                        && right.is_empty()
-                        && !left.trim_start().is_empty()
-                        && snippet
-                            .keyword
-                            .as_deref()
-                            .is_some_and(|keyword| keyword.starts_with(left.trim_start()))
-                        && !snippet_search_label(snippet).is_empty()
+                    !snippet.snippet.contains('\n') && matches_snippet_context(snippet, left, right)
                 })
                 .map(|(index, snippet)| {
                     format!(
@@ -1514,13 +1506,17 @@ fn snippet_fingerprint(snippet: &Snippet) -> u64 {
 }
 
 fn snippet_search_label(snippet: &Snippet) -> String {
-    [snippet.name.as_ref(), snippet.keyword.as_ref()]
-        .into_iter()
-        .flatten()
-        .map(|value| sanitize_snippet_field(value).trim().to_owned())
-        .filter(|value| !value.is_empty())
-        .collect::<Vec<_>>()
-        .join(" ")
+    [
+        snippet.name.as_deref(),
+        snippet.keyword.as_deref(),
+        Some(snippet.snippet.as_str()),
+    ]
+    .into_iter()
+    .flatten()
+    .map(|value| sanitize_snippet_field(value).trim().to_owned())
+    .filter(|value| !value.is_empty())
+    .collect::<Vec<_>>()
+    .join(" ")
 }
 
 fn snippet_display_label(snippet: &Snippet) -> String {
@@ -1537,12 +1533,9 @@ fn snippet_display_label(snippet: &Snippet) -> String {
         .map(|value| value.trim().to_owned())
         .filter(|value| !value.is_empty());
     let label = name.clone().or_else(|| keyword.clone()).unwrap_or_default();
-    let keyword_suffix = if name.is_some() {
-        keyword
-            .map(|value| format!(" [{value}]"))
-            .unwrap_or_default()
-    } else {
-        String::new()
+    let keyword_suffix = match (name.as_deref(), keyword.as_deref()) {
+        (Some(name), Some(keyword)) if name != keyword => format!(" [{keyword}]"),
+        _ => String::new(),
     };
     if label.is_empty() {
         sanitize_snippet_field(&snippet.snippet)
@@ -1557,9 +1550,12 @@ fn snippet_display_label(snippet: &Snippet) -> String {
 fn sanitize_snippet_field(value: &str) -> String {
     value
         .chars()
-        .map(|character| match character {
-            '\t' | '\r' | '\n' => ' ',
-            character => character,
+        .map(|character| {
+            if character.is_control() {
+                ' '
+            } else {
+                character
+            }
         })
         .collect()
 }
@@ -1881,24 +1877,25 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn snippet_candidates_match_keyword_prefixes() {
+    async fn snippet_candidates_collect_context_matches_without_ui_filtering() {
         let temporary = tempfile::tempdir().unwrap();
         fs::set_permissions(temporary.path(), fs::Permissions::from_mode(0o700)).unwrap();
         let config = temporary.path().join("snippets.yml");
         fs::write(
             &config,
-            "snippets:\n  - name: aws_dev\n    keyword: aws_dev\n    snippet: \"printf aws_dev\"\n  - name: aws_prod\n    keyword: aws_prod\n    snippet: \"printf aws_prod\"\n  - name: cx\n    keyword: cx\n    snippet: \"printf cx\"\n  - name: cxl\n    keyword: cxl\n    snippet: \"printf cxl\"\n  - name: cxa\n    keyword: cxa\n    snippet: \"printf cxa\"\n",
+            "snippets:\n  - name: ad_dev\n    keyword: deploy\n    snippet: \"printf ad_dev\"\n  - name: shared\n    keyword: cx_aws_dev\n    snippet: \"printf shared\"\n  - name: other\n    keyword: unrelated\n    snippet: \"printf pi_aws_dev\"\n  - name: multiline\n    keyword: multiline\n    snippet: |\n      printf one\n      printf two\n  - name: contextual\n    keyword: only_here\n    snippet: \"printf contextual\"\n    context:\n      lbuffer: \"^allowed$\"\n",
         )
         .unwrap();
         let paths = RuntimePaths::from_directory(temporary.path().to_path_buf()).unwrap();
         let state = DaemonState::new(paths);
 
         for (lbuffer, rbuffer, expected_count) in [
-            ("", "", 0),
-            ("aws", "", 2),
-            ("cx", "", 3),
-            ("aws arg", "", 0),
-            ("aws", "arg", 0),
+            ("", "", 3),
+            ("aws", "", 3),
+            ("aws arg", "", 3),
+            ("aws", "arg", 3),
+            ("allowed", "", 4),
+            ("blocked", "", 3),
         ] {
             let mut request = Request::new(
                 Operation::Feature {
@@ -1925,6 +1922,181 @@ mod tests {
                 "unexpected candidates for {lbuffer:?} {rbuffer:?}"
             );
         }
+
+        let mut request = Request::new(
+            Operation::Feature {
+                name: "snippet.candidates".into(),
+                payload: serde_json::json!({ "lbuffer": "aws", "rbuffer": "" }),
+            },
+            "session",
+            "/tmp",
+        );
+        request
+            .environment
+            .insert("HOME".into(), temporary.path().display().to_string());
+        request
+            .environment
+            .insert("ZSHCTL_CONFIG".into(), config.display().to_string());
+        let response = dispatch(request, &state).await;
+        let ResponseResult::Success { value } = response.result else {
+            panic!("candidate request failed");
+        };
+        let items = value["items"].as_array().expect("items must be an array");
+        assert!(items.iter().any(|item| {
+            item.as_str()
+                .is_some_and(|item| item.contains("ad_dev") && item.contains("deploy"))
+        }));
+        assert!(items.iter().any(|item| {
+            item.as_str()
+                .is_some_and(|item| item.contains("cx_aws_dev"))
+        }));
+        assert!(items.iter().any(|item| {
+            item.as_str()
+                .is_some_and(|item| item.contains("pi_aws_dev"))
+        }));
+        assert!(
+            !items
+                .iter()
+                .any(|item| { item.as_str().is_some_and(|item| item.contains("multiline")) })
+        );
+    }
+
+    #[tokio::test]
+    async fn snippet_candidate_ids_disambiguate_same_names_and_sanitize_tsv() {
+        let temporary = tempfile::tempdir().unwrap();
+        fs::set_permissions(temporary.path(), fs::Permissions::from_mode(0o700)).unwrap();
+        let config = temporary.path().join("snippets.yml");
+        fs::write(
+            &config,
+            "snippets:\n  - name: 'same:name'\n    keyword: first\n    snippet: \"printf first\\tline\"\n  - name: 'same:name'\n    keyword: second\n    snippet: \"printf second\"\n",
+        )
+        .unwrap();
+        let paths = RuntimePaths::from_directory(temporary.path().to_path_buf()).unwrap();
+        let state = DaemonState::new(paths);
+        let mut candidates = Request::new(
+            Operation::Feature {
+                name: "snippet.candidates".into(),
+                payload: serde_json::json!({ "lbuffer": "", "rbuffer": "" }),
+            },
+            "session",
+            "/tmp",
+        );
+        candidates
+            .environment
+            .insert("HOME".into(), temporary.path().display().to_string());
+        candidates
+            .environment
+            .insert("ZSHCTL_CONFIG".into(), config.display().to_string());
+        let response = dispatch(candidates, &state).await;
+        let ResponseResult::Success { value } = response.result else {
+            panic!("candidate request failed");
+        };
+        let items = value["items"].as_array().expect("items must be an array");
+        assert_eq!(items.len(), 2);
+        let ids = items
+            .iter()
+            .map(|item| item.as_str().unwrap().split('\t').next().unwrap())
+            .collect::<Vec<_>>();
+        assert_ne!(ids[0], ids[1]);
+        assert!(
+            items
+                .iter()
+                .all(|item| item.as_str().unwrap().split('\t').count() == 3)
+        );
+
+        let mut insert = Request::new(
+            Operation::Feature {
+                name: "snippet.insert-id".into(),
+                payload: serde_json::json!({
+                    "id": ids[1],
+                    "lbuffer": "",
+                    "rbuffer": "",
+                    "context_lbuffer": "",
+                    "context_rbuffer": ""
+                }),
+            },
+            "session",
+            "/tmp",
+        );
+        insert
+            .environment
+            .insert("HOME".into(), temporary.path().display().to_string());
+        insert
+            .environment
+            .insert("ZSHCTL_CONFIG".into(), config.display().to_string());
+        let response = dispatch(insert, &state).await;
+        let ResponseResult::Success { value } = response.result else {
+            panic!("insert request failed");
+        };
+        assert_eq!(value["status"], "success");
+        assert_eq!(value["buffer"], "printf second ");
+    }
+
+    #[tokio::test]
+    async fn context_mismatch_rejects_before_evaluate() {
+        let temporary = tempfile::tempdir().unwrap();
+        fs::set_permissions(temporary.path(), fs::Permissions::from_mode(0o700)).unwrap();
+        let config = temporary.path().join("snippets.yml");
+        let marker = temporary.path().join("evaluated.marker");
+        fs::write(
+            &config,
+            "snippets:\n  - name: guarded\n    keyword: guard\n    snippet: \"printf evaluated > evaluated.marker\"\n    evaluate: true\n    context:\n      lbuffer: \"^allowed$\"\n",
+        )
+        .unwrap();
+        let paths = RuntimePaths::from_directory(temporary.path().to_path_buf()).unwrap();
+        let state = DaemonState::new(paths);
+        let mut candidates = Request::new(
+            Operation::Feature {
+                name: "snippet.candidates".into(),
+                payload: serde_json::json!({ "lbuffer": "allowed", "rbuffer": "" }),
+            },
+            "session",
+            temporary.path().to_string_lossy().to_string(),
+        );
+        candidates
+            .environment
+            .insert("HOME".into(), temporary.path().display().to_string());
+        candidates
+            .environment
+            .insert("ZSHCTL_CONFIG".into(), config.display().to_string());
+        let response = dispatch(candidates, &state).await;
+        let ResponseResult::Success { value } = response.result else {
+            panic!("candidate request failed");
+        };
+        let id = value["items"][0]
+            .as_str()
+            .unwrap()
+            .split('\t')
+            .next()
+            .unwrap()
+            .to_owned();
+
+        let mut insert = Request::new(
+            Operation::Feature {
+                name: "snippet.insert-id".into(),
+                payload: serde_json::json!({
+                    "id": id,
+                    "lbuffer": "",
+                    "rbuffer": "",
+                    "context_lbuffer": "blocked",
+                    "context_rbuffer": ""
+                }),
+            },
+            "session",
+            temporary.path().to_string_lossy().to_string(),
+        );
+        insert
+            .environment
+            .insert("HOME".into(), temporary.path().display().to_string());
+        insert
+            .environment
+            .insert("ZSHCTL_CONFIG".into(), config.display().to_string());
+        let response = dispatch(insert, &state).await;
+        let ResponseResult::Success { value } = response.result else {
+            panic!("insert request failed");
+        };
+        assert_eq!(value["status"], "failure");
+        assert!(!marker.exists());
     }
 
     #[tokio::test]

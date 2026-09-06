@@ -11,7 +11,7 @@ trap 'rm -f "$stdout_file" "$stderr_file"' EXIT
 [[ ! -s "$stderr_file" ]]
 
 PATH="${binary:h}:$PATH"
-dummy-fzf-tab-widget() { : }
+dummy-fzf-tab-widget() { :; }
 zle -N fzf-tab-complete dummy-fzf-tab-widget
 fzf_tab_before=${widgets[fzf-tab-complete]}
 source "${0:A:h:h:h}/zshctl.zsh"
@@ -44,7 +44,7 @@ case "$*" in
     ;;
   *--mode=snippet-candidates*)
     printf 'success\n'
-    printf '%s\n' '--no-multi'
+    printf '%s\n' '--filter=trusted --no-multi'
     printf '%s\n' 's0001-0000000000000001	git status gs	git status:  git status  [gs]'
     printf '%s\n' 's0002-0000000000000002	cd	cd:  cd /tmp'
     ;;
@@ -62,15 +62,23 @@ EOF
 #!/bin/sh
 : >"$FAKE_FZF_ARGS"
 printf '%s\n' "$@" >"$FAKE_FZF_ARGS"
-[ "${FAKE_FZF_CANCEL:-0}" = 1 ] && exit 1
+printf 'env:FZF_DEFAULT_OPTS=%s\n' "${FZF_DEFAULT_OPTS-<unset>}" >>"$FAKE_FZF_ARGS"
+printf 'env:FZF_DEFAULT_OPTS_FILE=%s\n' "${FZF_DEFAULT_OPTS_FILE-<unset>}" >>"$FAKE_FZF_ARGS"
+[ "${FAKE_FZF_CANCEL:-0}" = 1 ] && exit 130
+[ "${FAKE_FZF_NO_MATCH:-0}" = 1 ] && exit 1
+[ "${FAKE_FZF_ERROR:-0}" = 1 ] && exit 2
+[ "${FAKE_FZF_EMPTY:-0}" = 1 ] && exit 0
 IFS= read -r selected || exit 1
 printf '%s\n' "${FAKE_FZF_KEY:-}" "$selected"
 EOF
   chmod +x "$fake_zshctl" "$fake_fzf"
   PATH="$fake_root:$PATH"
   export PATH ZSHCTL_FZF_COMMAND="$fake_fzf" FAKE_FZF_ARGS="$fake_fzf_args"
+  export FZF_DEFAULT_OPTS='--select-1 --filter=must-not-match'
   last_call=
-  zle() { last_call="$*"; }
+  calls=()
+  zle() { calls+=("$*"); last_call="$*"; }
+  # shellcheck disable=SC2034
   ZSHCTL_COMPLETION_FALLBACK=expand-or-complete
   autoload +X zshctl-completion
   trap 'rm -rf "$fake_root"' EXIT
@@ -83,7 +91,13 @@ EOF
   [[ $BUFFER == 'git status ' ]]
   [[ $CURSOR == 11 ]]
   grep -qx -- '--query=gs' "$fake_fzf_args"
+  grep -qx -- '--filter=trusted' "$fake_fzf_args"
+  grep -qx -- '--nth=1' "$fake_fzf_args"
   grep -qx -- '--with-nth=3' "$fake_fzf_args"
+  grep -qx -- '--exit-0' "$fake_fzf_args"
+  grep -qx -- '--no-select-1' "$fake_fzf_args"
+  grep -qx 'env:FZF_DEFAULT_OPTS=<unset>' "$fake_fzf_args"
+  grep -qx 'env:FZF_DEFAULT_OPTS_FILE=<unset>' "$fake_fzf_args"
 
   last_call=
   export FAKE_FZF_CANCEL=1
@@ -97,11 +111,77 @@ EOF
   [[ $last_call == reset-prompt ]]
   unset FAKE_FZF_CANCEL
 
+  export FAKE_FZF_NO_MATCH=1
+  last_call=
+  BUFFER=gs
+  CURSOR=2
+  LBUFFER=gs
+  RBUFFER=
+  zshctl-completion
+  [[ $BUFFER == gs && $CURSOR == 2 ]]
+  [[ $last_call == expand-or-complete ]]
+  unset FAKE_FZF_NO_MATCH
+
+  export FAKE_FZF_ERROR=1
+  last_call=
+  BUFFER=gs
+  CURSOR=2
+  LBUFFER=gs
+  RBUFFER=
+  zshctl-completion
+  [[ $BUFFER == gs && $CURSOR == 2 ]]
+  [[ $last_call == expand-or-complete ]]
+  unset FAKE_FZF_ERROR
+
+  export FAKE_FZF_EMPTY=1
+  last_call=
+  BUFFER=gs
+  CURSOR=2
+  LBUFFER=gs
+  RBUFFER=
+  zshctl-completion
+  [[ $BUFFER == gs && $CURSOR == 2 ]]
+  [[ $last_call == expand-or-complete ]]
+  unset FAKE_FZF_EMPTY
+
   export FAKE_FZF_KEY=tab
   last_call=
   zshctl-completion
   [[ $BUFFER == gs && $CURSOR == 2 ]]
   [[ $last_call == expand-or-complete ]]
+  unset FAKE_FZF_KEY FZF_DEFAULT_OPTS
+
+  autoload +X zshctl-insert-snippet
+  calls=()
+  BUFFER='  gs'
+  CURSOR=4
+  LBUFFER='  gs'
+  RBUFFER=
+  zshctl-insert-snippet
+  [[ $BUFFER == '  git status ' ]]
+  [[ $CURSOR == 13 ]]
+  [[ ${#calls[@]} == 1 && ${calls[1]} == reset-prompt ]]
+  grep -qx -- '--query=gs' "$fake_fzf_args"
+
+  calls=()
+  BUFFER=$'\n gs'
+  CURSOR=4
+  LBUFFER=$'\n gs'
+  RBUFFER=
+  zshctl-insert-snippet
+  [[ ${#calls[@]} == 1 && ${calls[1]} == reset-prompt ]]
+  if grep -q '^--query=' "$fake_fzf_args"; then
+    exit 1
+  fi
+
+  calls=()
+  export FAKE_FZF_KEY=tab
+  BUFFER=gs
+  CURSOR=2
+  LBUFFER=gs
+  RBUFFER=
+  zshctl-insert-snippet
+  [[ ${#calls[@]} == 1 && ${calls[1]} == expand-or-complete ]]
   unset FAKE_FZF_KEY
 
   last_call=
@@ -113,7 +193,9 @@ EOF
   last_call=
   BUFFER='cd /tmp'
   CURSOR=7
+  # shellcheck disable=SC2034
   LBUFFER='cd /tmp'
+  # shellcheck disable=SC2034
   RBUFFER=
   zshctl-completion
   [[ $BUFFER == 'cd /tmp' ]]
@@ -123,10 +205,10 @@ EOF
 # Enter must never fall back to self-insert and place a CR in the buffer.
 (
   calls=()
-  zle() { calls+=("$*") }
+  zle() { calls+=("$*"); }
   source "${0:A:h:h:h}/shells/zsh/widgets/zshctl-auto-snippet-and-accept-line"
   [[ $ZSHCTL_AUTO_SNIPPET_FALLBACK == _zshctl_noop ]]
-  [[ $calls[1] == '-N _zshctl_noop' ]]
-  [[ $calls[2] == zshctl-auto-snippet ]]
-  [[ $calls[3] == accept-line ]]
+  [[ ${calls[1]} == '-N _zshctl_noop' ]]
+  [[ ${calls[2]} == zshctl-auto-snippet ]]
+  [[ ${calls[3]} == accept-line ]]
 )
